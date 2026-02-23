@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>《自我觀測儀》系統實踐原型 v13.0 - 動態感應與純白介面版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        body {
+            background-color: #000;
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        /* CRT 濾鏡：降低飽和度以配合白色美學 */
+        .crt-overlay {
+            pointer-events: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(255, 255, 255, 0.02) 50%), 
+                        linear-gradient(90deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.01));
+            background-size: 100% 3px, 3px 100%;
+            z-index: 200;
+        }
+
+        .main-viewport { width: 100vw; height: 100vh; position: relative; background: #000; cursor: none; }
+        
+        /* 純白懸浮旋鈕 */
+        .knob-interface {
+            position: absolute;
+            right: 40px;
+            bottom: 40px;
+            display: flex;
+            gap: 30px;
+            z-index: 250;
+            pointer-events: auto;
+        }
+
+        .circular-knob {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            position: relative;
+            cursor: ns-resize;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.5s ease;
+        }
+        .circular-knob:hover { border: 1px solid rgba(255, 255, 255, 0.4); }
+
+        .knob-label {
+            position: absolute;
+            top: -22px;
+            width: 100%;
+            text-align: center;
+            font-size: 8px;
+            color: rgba(255, 255, 255, 0.3);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .knob-hand {
+            width: 1px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.6);
+            transform-origin: bottom;
+            position: absolute;
+            bottom: 50%;
+        }
+
+        /* 互動游標：保持紅色以突顯「偵測中」的狀態 */
+        .custom-cursor {
+            width: 40px; height: 40px; 
+            border: 2px solid #FF3131;
+            position: fixed; pointer-events: none; 
+            z-index: 300; 
+            transform: translate(-50%, -50%);
+            mix-blend-mode: screen;
+            border-radius: 50%;
+            transition: width 0.2s, height 0.2s, border-color 0.2s;
+        }
+        
+        .cursor-active {
+            width: 60px; height: 60px;
+            border-color: #FFFFFF;
+            box-shadow: 0 0 20px rgba(255, 49, 49, 0.5);
+        }
+
+        #motion-canvas {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 90px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0.3; /* 隱約可見感應過程 */
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="crt-overlay"></div>
+    <div id="cursor" class="custom-cursor"></div>
+
+    <!-- 感應顯示小視窗 -->
+    <canvas id="motion-canvas"></canvas>
+
+    <div class="knob-interface">
+        <div class="circular-knob" id="knob-chaos">
+            <div class="knob-label">CHAOS</div>
+            <div class="knob-hand" id="hand-chaos"></div>
+        </div>
+        <div class="circular-knob" id="knob-entropy">
+            <div class="knob-label">ENTROPY</div>
+            <div class="knob-hand" id="hand-entropy"></div>
+        </div>
+    </div>
+
+    <div class="main-viewport">
+        <div id="three-container"></div>
+    </div>
+
+    <video id="video" autoplay playsinline style="display:none"></video>
+
+    <script id="vertexShader" type="x-shader/x-vertex">
+        varying vec2 vUv;
+        uniform float time;
+        uniform float chaos;
+
+        void main() {
+            vUv = uv;
+            vec3 pos = position;
+            // 影像表面的有機波浪（黏滯牽引）- 受 Chaos 旋鈕強度影響
+            float waveStr = chaos * 12.0;
+            float wave = sin(time * 1.5 + (pos.x * 0.04 + pos.y * 0.04)) * waveStr;
+            pos.z += wave;
+            
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        }
+    </script>
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform sampler2D tDiffuse;
+        uniform int phasePair;
+        uniform int subMode;
+        uniform float time;
+        uniform float chaos;
+        uniform float transition;
+        varying vec2 vUv;
+
+        void main() {
+            vec2 uv = vUv;
+            
+            // 數位黏稠感扭曲 - 隨 Chaos 增加
+            if(chaos > 0.1) {
+                float dist = distance(uv, vec2(0.5));
+                float shift = sin(dist * 12.0 - time * 2.0) * 0.02 * chaos;
+                uv += shift;
+            }
+
+            // 隨機鏡像邏輯
+            if(phasePair == 1 || phasePair == 3) {
+                if(subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25;
+            }
+
+            vec4 tex = texture2D(tDiffuse, uv);
+            float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
+            vec4 finalCol = tex;
+
+            // 白色美學濾鏡調配
+            if(phasePair == 1 || phasePair == 2) {
+                if(subMode % 5 == 0) { // 高調熱感 (White Thermal)
+                    vec3 col = mix(vec3(0.1), vec3(0.8, 0.8, 1.0), luma);
+                    if(luma > 0.6) col = mix(col, vec3(1.0, 1.0, 1.0), (luma-0.6)*2.5);
+                    finalCol = mix(finalCol, vec4(col, 1.0), 0.8 * transition);
+                } else if (subMode % 5 == 1) { // 邊緣偵測 (White Edge)
+                    float edge = fwidth(luma) * 20.0;
+                    finalCol += vec4(vec3(edge), 0.0) * transition;
+                }
+            }
+
+            gl_FragColor = finalCol * transition;
+        }
+    </script>
+
+    <script>
+        let state = {
+            phasePair: 1, 
+            subMode: 0,
+            chaos: 0.5,
+            entropy: 0.4,
+            lastSwitch: 0,
+            transition: 0,
+            targetTransition: 1,
+            // 互動座標 (由感應器更新)
+            targetX: window.innerWidth / 2,
+            targetY: window.innerHeight / 2,
+            currentX: window.innerWidth / 2,
+            currentY: window.innerHeight / 2,
+            isSwitching: false
+        };
+
+        let history = { phases: [], modes: [] };
+        let scene, camera, renderer, videoTexture, mesh, particles, liquidWeb;
+        let shaderMat;
+        const CYCLE_INTERVAL = 8000; 
+
+        // 旋鈕邏輯
+        function initKnobs() {
+            const setupKnob = (id, key) => {
+                const knob = document.getElementById(id);
+                const hand = document.getElementById('hand-' + id.split('-')[1]);
+                let isDragging = false;
+                const updateHand = (val) => {
+                    hand.style.transform = `translateX(-50%) rotate(${val * 280 - 140}deg)`;
+                };
+                knob.onmousedown = () => isDragging = true;
+                window.onmouseup = () => isDragging = false;
+                window.onmousemove = (e) => {
+                    if (!isDragging) return;
+                    state[key] = Math.max(0, Math.min(1, state[key] - e.movementY * 0.01));
+                    updateHand(state[key]);
+                };
+                updateHand(state[key]);
+            };
+            setupKnob('knob-chaos', 'chaos');
+            setupKnob('knob-entropy', 'entropy');
+        }
+
+        // --- 攝影機手勢/動態感應器 ---
+        let prevFrame = null;
+        const motionCanvas = document.getElementById('motion-canvas');
+        const motionCtx = motionCanvas.getContext('2d');
+
+        function updateMotionTracking() {
+            const v = document.getElementById('video');
+            if (v.readyState !== v.HAVE_ENOUGH_DATA) return;
+
+            motionCtx.drawImage(v, 0, 0, motionCanvas.width, motionCanvas.height);
+            const currFrame = motionCtx.getImageData(0, 0, motionCanvas.width, motionCanvas.height);
+            
+            if (prevFrame) {
+                let totalX = 0, totalY = 0, count = 0;
+                const threshold = 40;
+
+                for (let i = 0; i < currFrame.data.length; i += 4) {
+                    const rDiff = Math.abs(currFrame.data[i] - prevFrame.data[i]);
+                    const gDiff = Math.abs(currFrame.data[i+1] - prevFrame.data[i+1]);
+                    const bDiff = Math.abs(currFrame.data[i+2] - prevFrame.data[i+2]);
+                    const diff = (rDiff + gDiff + bDiff) / 3;
+
+                    if (diff > threshold) {
+                        const pixelIdx = i / 4;
+                        totalX += pixelIdx % motionCanvas.width;
+                        totalY += Math.floor(pixelIdx / motionCanvas.width);
+                        count++;
+                        // 在小視窗中標示動態
+                        currFrame.data[i] = 255;
+                        currFrame.data[i+1] = 255;
+                        currFrame.data[i+2] = 255;
+                    }
+                }
+
+                if (count > 50) { // 偵測到足夠的移動
+                    const avgX = totalX / count;
+                    const avgY = totalY / count;
+                    // 將小視窗座標映射到全螢幕 (注意：攝影機通常是鏡像的)
+                    state.targetX = (1 - (avgX / motionCanvas.width)) * window.innerWidth;
+                    state.targetY = (avgY / motionCanvas.height) * window.innerHeight;
+                    document.getElementById('cursor').classList.add('cursor-active');
+                } else {
+                    document.getElementById('cursor').classList.remove('cursor-active');
+                }
+                motionCtx.putImageData(currFrame, 0, 0);
+            }
+            prevFrame = currFrame;
+        }
+
+        async function init() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+            document.getElementById('video').srcObject = stream;
+            await document.getElementById('video').play();
+
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 110;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000, 1);
+            document.getElementById('three-container').appendChild(renderer.domElement);
+
+            videoTexture = new THREE.VideoTexture(document.getElementById('video'));
+
+            shaderMat = new THREE.ShaderMaterial({
+                uniforms: { 
+                    tDiffuse: { value: videoTexture }, 
+                    phasePair: { value: 1 }, subMode: { value: 0 }, 
+                    time: { value: 0 }, chaos: { value: 0.5 }, transition: { value: 1.0 }
+                },
+                vertexShader: document.getElementById('vertexShader').textContent,
+                fragmentShader: document.getElementById('fragmentShader').textContent,
+                transparent: true
+            });
+
+            // 背景平面
+            mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(230, 170, 128, 128), shaderMat);
+            scene.add(mesh);
+
+            // 黏液網 - 改為白色
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.1 });
+            liquidWeb = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat);
+            scene.add(liquidWeb);
+
+            createFragments();
+            initKnobs();
+
+            animate();
+        }
+
+        function createFragments() {
+            particles = new THREE.Group();
+            const cols = 15, rows = 12;
+            const w = 230/cols, h = 170/rows;
+            for(let i=0; i<cols; i++) {
+                for(let j=0; j<rows; j++) {
+                    let geo;
+                    const rnd = Math.random();
+                    // 多樣化幾何體
+                    if(rnd < 0.25) geo = new THREE.TorusKnotBufferGeometry(w/3, 0.1, 32, 8);
+                    else if(rnd < 0.5) geo = new THREE.OctahedronBufferGeometry(w/2, 1);
+                    else if(rnd < 0.75) geo = new THREE.CylinderBufferGeometry(w/4, w/4, h, 12);
+                    else geo = new THREE.SphereBufferGeometry(w/2, 12, 12);
+
+                    // 幾何體材質設為純白疊加
+                    const p = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ 
+                        map: videoTexture, transparent: true, opacity: 0.95,
+                        color: 0xEEEEEE
+                    }));
+                    const ox = i*w-115+w/2, oy = j*h-85+h/2;
+                    p.position.set(ox, oy, (Math.random()-0.5)*20);
+                    p.userData = { 
+                        origin: p.position.clone(), 
+                        v: new THREE.Vector3(), 
+                        noise: Math.random()*100,
+                        viscosity: 0.88 + Math.random()*0.1,
+                        elasticity: 0.015 + Math.random()*0.02
+                    };
+                    particles.add(p);
+                }
+            }
+            scene.add(particles);
+        }
+
+        function randomize() {
+            state.isSwitching = true;
+            state.targetTransition = 0.2; 
+            setTimeout(() => {
+                state.phasePair = Math.floor(Math.random() * 3) + 1;
+                state.subMode = Math.floor(Math.random() * 6);
+                shaderMat.uniforms.phasePair.value = state.phasePair;
+                shaderMat.uniforms.subMode.value = state.subMode;
+                mesh.visible = (state.phasePair === 1 || state.phasePair === 3);
+                particles.visible = (state.phasePair === 2 || state.phasePair === 3);
+                state.targetTransition = 1.0;
+                state.isSwitching = false;
+            }, 800);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = Date.now() * 0.001;
+            shaderMat.uniforms.time.value = time;
+            shaderMat.uniforms.chaos.value = state.chaos;
+
+            // 更新動態感應
+            updateMotionTracking();
+
+            // 游標平滑跟隨 (Lerp)
+            state.currentX += (state.targetX - state.currentX) * 0.1;
+            state.currentY += (state.targetY - state.currentY) * 0.1;
+            const cursorEl = document.getElementById('cursor');
+            cursorEl.style.left = state.currentX + 'px';
+            cursorEl.style.top = state.currentY + 'px';
+
+            state.transition += (state.targetTransition - state.transition) * 0.08;
+            shaderMat.uniforms.transition.value = state.transition;
+
+            const interval = CYCLE_INTERVAL / (0.4 + state.entropy);
+            if(Date.now() - state.lastSwitch > interval && !state.isSwitching) {
+                randomize();
+                state.lastSwitch = Date.now();
+            }
+
+            // 轉換感應座標為 3D 空間座標
+            const wm = new THREE.Vector3(
+                ((state.currentX / window.innerWidth) * 2 - 1) * 115,
+                -((state.currentY / window.innerHeight) * 2 - 1) * 85,
+                10
+            );
+
+            if(particles.visible) {
+                const points = [];
+                particles.children.forEach((p, i) => {
+                    const ud = p.userData;
+                    let target = ud.origin.clone();
+
+                    // 流體震盪 - 受 Chaos 影響
+                    const t = time * (0.3 + state.chaos * 0.5);
+                    target.x += Math.sin(t + ud.noise) * (50 * state.chaos);
+                    target.y += Math.cos(t * 0.7 + ud.noise) * (50 * state.chaos);
+
+                    // 空間感應排斥
+                    const dist = p.position.distanceTo(wm);
+                    if(dist < 75) {
+                        const force = (1.0 - dist/75) * state.chaos * 6.0;
+                        ud.v.add(new THREE.Vector3().subVectors(p.position, wm).normalize().multiplyScalar(force));
+                    }
+
+                    // 黏性拉力
+                    const spring = new THREE.Vector3().subVectors(target, p.position).multiplyScalar(ud.elasticity);
+                    ud.v.add(spring);
+                    ud.v.multiplyScalar(ud.viscosity);
+                    p.position.add(ud.v);
+                    
+                    p.rotation.x += ud.v.length() * 0.05;
+                    p.rotation.y += 0.005;
+
+                    // 建立黏液連結點 (白色絲狀)
+                    if (dist < 40 && Math.random() > 0.5) {
+                        points.push(p.position.x, p.position.y, p.position.z, wm.x, wm.y, wm.z);
+                    }
+                });
+                
+                liquidWeb.geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+                liquidWeb.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // 背景牽引變形
+            if(mesh.visible) {
+                const pos = mesh.geometry.attributes.position.array;
+                for(let i=0; i<pos.length; i+=3) {
+                    const vx = pos[i], vy = pos[i+1];
+                    const d = Math.sqrt((vx-wm.x)**2 + (vy-wm.y)**2);
+                    let z = Math.sin(time * 1.2 + (vx+vy)*0.03) * (2.0 + state.chaos * 5.0);
+                    if(d < 100) z += (100-d) * state.chaos * 1.2;
+                    pos[i+2] = z;
+                }
+                mesh.geometry.attributes.position.needsUpdate = true;
+            }
+
+            scene.rotation.y = ((state.currentX / window.innerWidth) - 0.5) * 0.08;
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
