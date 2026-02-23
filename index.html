@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>《自我觀測儀》系統實踐原型 v14.3 - 指尖感應增強版</title>
+    <title>《自我觀測儀》系統實踐原型 v14.5 - 全特效循環版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
@@ -45,8 +45,8 @@
             width: 75px;
             height: 75px;
             border-radius: 50%;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: radial-gradient(circle at center, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.4) 100%);
             backdrop-filter: blur(15px);
             position: relative;
             cursor: pointer;
@@ -54,14 +54,19 @@
             align-items: center;
             justify-content: center;
             touch-action: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: border 0.3s, box-shadow 0.3s;
         }
         
         @media (min-width: 768px) {
             .knob-interface { right: 50px; bottom: 50px; gap: 40px; }
-            .circular-knob { width: 90px; height: 90px; }
+            .circular-knob { width: 95px; height: 95px; }
         }
 
-        .circular-knob:hover { border: 1px solid rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.15); }
+        .circular-knob.active {
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
 
         .knob-label {
             position: absolute;
@@ -69,20 +74,19 @@
             width: 140%;
             left: -20%;
             text-align: center;
-            font-size: 8px;
-            color: rgba(255, 255, 255, 0.4);
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.5);
             letter-spacing: 2px;
             text-transform: uppercase;
         }
 
         .knob-hand {
             width: 2px;
-            height: 35px;
-            background: rgba(255, 255, 255, 0.8);
+            height: 40%;
+            background: #FFFFFF;
             transform-origin: bottom;
             position: absolute;
             bottom: 50%;
-            box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
         }
 
         .custom-cursor {
@@ -93,13 +97,13 @@
             transform: translate(-50%, -50%);
             mix-blend-mode: screen;
             border-radius: 50%;
-            transition: border-width 0.2s, width 0.3s, height 0.3s;
+            transition: width 0.3s, height 0.3s, border-width 0.2s;
         }
         
         .cursor-detecting {
-            width: 60px; height: 60px;
+            width: 65px; height: 65px;
             border-width: 3px;
-            box-shadow: 0 0 20px rgba(255, 49, 49, 0.5);
+            box-shadow: 0 0 25px rgba(255, 49, 49, 0.6);
             border-color: #FFFFFF;
         }
 
@@ -107,10 +111,10 @@
             position: absolute;
             bottom: 20px;
             left: 20px;
-            width: 120px;
-            height: 90px;
+            width: 100px;
+            height: 75px;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            opacity: 0.3;
+            opacity: 0.2;
             z-index: 50;
             background: #000;
         }
@@ -121,7 +125,7 @@
     <div class="crt-overlay"></div>
     <div id="cursor" class="custom-cursor"></div>
 
-    <canvas id="motion-canvas" width="120" height="90"></canvas>
+    <canvas id="motion-canvas" width="100" height="75"></canvas>
 
     <div class="knob-interface">
         <div class="circular-knob" id="knob-chaos">
@@ -134,7 +138,7 @@
         </div>
     </div>
 
-    <div class="main-viewport">
+    <div class="main-viewport" id="interaction-area">
         <div id="three-container"></div>
     </div>
 
@@ -147,7 +151,7 @@
         void main() {
             vUv = uv;
             vec3 pos = position;
-            float wave = sin(time * 1.5 + (pos.x * 0.05 + pos.y * 0.05)) * (chaos * 15.0);
+            float wave = sin(time * (1.2 + chaos * 2.0) + (pos.x * 0.08 + pos.y * 0.08)) * (chaos * 25.0);
             pos.z += wave;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
@@ -160,41 +164,71 @@
         uniform float chaos;
         uniform float transition;
         varying vec2 vUv;
+
         void main() {
             vec2 uv = vUv;
+            
+            // 全域混亂扭曲
             if(chaos > 0.1) {
                 float d = distance(uv, vec2(0.5));
                 uv.x += sin(d * 10.0 - time) * 0.02 * chaos;
                 uv.y += cos(d * 10.0 - time) * 0.02 * chaos;
             }
-            if(phasePair == 1 || phasePair == 3) {
-                if(subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25;
+
+            // 特效分支邏輯
+            vec4 finalCol;
+            
+            if (subMode == 3) { // Mode 3: Lacanian Mirror
+                uv.x = abs(uv.x - 0.5) + 0.25;
             }
-            vec4 tex = texture2D(tDiffuse, uv);
-            float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
-            vec4 finalCol = tex;
-            if(phasePair == 1 || phasePair == 2) {
-                if(subMode % 5 == 0) {
-                    vec3 col = mix(vec3(0.1), vec3(0.7, 0.8, 1.0), luma);
-                    if(luma > 0.6) col = mix(col, vec3(1.0), (luma-0.6)*2.0);
-                    finalCol = mix(finalCol, vec4(col, 1.0), 0.7 * transition);
-                } else if (subMode % 5 == 1) {
-                    float edge = fwidth(luma) * 22.0;
-                    finalCol += vec4(vec3(edge), 0.0) * transition;
-                }
+
+            if (subMode == 4) { // Mode 4: Digital Mosaic
+                float size = 50.0 - (chaos * 40.0);
+                uv = floor(uv * size) / size;
             }
+
+            if (subMode == 5) { // Mode 5: Chromatic Glitch
+                float shift = 0.02 * chaos;
+                float r = texture2D(tDiffuse, uv + vec2(shift, 0.0)).r;
+                float g = texture2D(tDiffuse, uv).g;
+                float b = texture2D(tDiffuse, uv - vec2(shift, 0.0)).b;
+                finalCol = vec4(r, g, b, 1.0);
+            } else {
+                finalCol = texture2D(tDiffuse, uv);
+            }
+
+            float luma = dot(finalCol.rgb, vec3(0.299, 0.587, 0.114));
+
+            if (subMode == 0) { // Mode 0: White Thermal
+                vec3 col = mix(vec3(0.05), vec3(0.8, 0.9, 1.0), luma);
+                if(luma > 0.5) col = mix(col, vec3(1.0), (luma-0.5)*2.0);
+                finalCol = vec4(col, 1.0);
+            } 
+            else if (subMode == 1) { // Mode 1: Ghost Edges
+                float edge = fwidth(luma) * (15.0 + chaos * 20.0);
+                finalCol = vec4(vec3(edge), 1.0);
+            }
+            else if (subMode == 2) { // Mode 2: Negative Inverse
+                finalCol.rgb = vec3(1.0) - finalCol.rgb;
+                finalCol.rgb *= vec3(0.9, 0.95, 1.0); // 稍微偏白
+            }
+
+            // 混合過渡效果
             gl_FragColor = finalCol * transition;
         }
     </script>
 
     <script>
         let state = {
-            phasePair: 1, subMode: 0,
+            phasePair: 1, 
+            subMode: 0,
+            modeCounter: 0, // 用於順序切換
             chaos: 0.5, entropy: 0.4,
             lastSwitch: 0, transition: 0, targetTransition: 1,
             targetX: window.innerWidth / 2, targetY: window.innerHeight / 2,
             currentX: window.innerWidth / 2, currentY: window.innerHeight / 2,
-            isMouseInteracting: false,
+            isKnobDragging: false,
+            isManualInteracting: false,
             isSwitching: false
         };
 
@@ -202,137 +236,118 @@
         let shaderMat;
         const CYCLE_INTERVAL = 8000;
 
+        function initInteraction() {
+            const handlePointer = (e) => {
+                if (state.isKnobDragging) return;
+                state.isManualInteracting = true;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                state.targetX = clientX;
+                state.targetY = clientY;
+                document.getElementById('cursor').classList.add('cursor-detecting');
+            };
+            const stopPointer = () => { state.isManualInteracting = false; };
+            window.addEventListener('mousedown', handlePointer);
+            window.addEventListener('mousemove', (e) => { if(e.buttons > 0) handlePointer(e); });
+            window.addEventListener('mouseup', stopPointer);
+            window.addEventListener('touchstart', handlePointer, {passive: false});
+            window.addEventListener('touchmove', handlePointer, {passive: false});
+            window.addEventListener('touchend', stopPointer);
+        }
+
         function initKnobs() {
             const setupKnob = (id, key) => {
                 const knob = document.getElementById(id);
                 const hand = document.getElementById('hand-' + id.split('-')[1]);
-                let isDragging = false;
                 let lastY = 0;
-                
                 const updateHand = (val) => {
                     hand.style.transform = `translateX(-50%) rotate(${val * 280 - 140}deg)`;
                 };
-
                 const startDragging = (y, e) => {
-                    isDragging = true;
-                    state.isMouseInteracting = true;
+                    state.isKnobDragging = true;
+                    knob.classList.add('active');
                     lastY = y;
                     if(e.cancelable) e.preventDefault();
+                    e.stopPropagation();
                 };
-
                 const moveDragging = (y) => {
-                    if (!isDragging) return;
+                    if (!state.isKnobDragging || !knob.classList.contains('active')) return;
                     const delta = lastY - y;
-                    // 微調旋鈕靈敏度
-                    state[key] = Math.max(0, Math.min(1, state[key] + delta * 0.007));
+                    state[key] = Math.max(0, Math.min(1, state[key] + delta * 0.008));
                     updateHand(state[key]);
                     lastY = y;
                 };
-
                 const stopDragging = () => {
-                    isDragging = false;
-                    state.isMouseInteracting = false;
+                    state.isKnobDragging = false;
+                    knob.classList.remove('active');
                 };
-
                 knob.onmousedown = (e) => startDragging(e.clientY, e);
                 window.addEventListener('mousemove', (e) => moveDragging(e.clientY));
                 window.addEventListener('mouseup', stopDragging);
-
                 knob.ontouchstart = (e) => startDragging(e.touches[0].clientY, e);
                 window.addEventListener('touchmove', (e) => moveDragging(e.touches[0].clientY), { passive: false });
                 window.addEventListener('touchend', stopDragging);
-
                 updateHand(state[key]);
             };
             setupKnob('knob-chaos', 'chaos');
             setupKnob('knob-entropy', 'entropy');
         }
 
-        // --- 感應核心：優化右側響應與追蹤集中度 ---
         let prevFrame = null;
         const motionCanvas = document.getElementById('motion-canvas');
         const motionCtx = motionCanvas.getContext('2d');
 
         function updateMotionTracking() {
-            if (state.isMouseInteracting) return;
-
+            if (state.isKnobDragging || state.isManualInteracting) return;
             const v = document.getElementById('video');
             if (v.readyState !== v.HAVE_ENOUGH_DATA) return;
-
             motionCtx.drawImage(v, 0, 0, motionCanvas.width, motionCanvas.height);
             const currFrame = motionCtx.getImageData(0, 0, motionCanvas.width, motionCanvas.height);
-            
             if (prevFrame) {
                 let totalX = 0, totalY = 0, count = 0;
-                const threshold = 25; // 提高靈敏度
-
+                const threshold = 22; 
                 for (let i = 0; i < currFrame.data.length; i += 4) {
-                    const diff = (Math.abs(currFrame.data[i] - prevFrame.data[i]) +
-                                  Math.abs(currFrame.data[i+1] - prevFrame.data[i+1]) +
-                                  Math.abs(currFrame.data[i+2] - prevFrame.data[i+2])) / 3;
-
+                    const diff = (Math.abs(currFrame.data[i] - prevFrame.data[i]) + Math.abs(currFrame.data[i+1] - prevFrame.data[i+1]) + Math.abs(currFrame.data[i+2] - prevFrame.data[i+2])) / 3;
                     if (diff > threshold) {
                         const idx = i / 4;
-                        const px = idx % motionCanvas.width;
-                        const py = Math.floor(idx / motionCanvas.width);
-                        
-                        // 加權邏輯：讓「中心化」的動作更有影響力
-                        totalX += px;
-                        totalY += py;
+                        totalX += idx % motionCanvas.width;
+                        totalY += Math.floor(idx / motionCanvas.width);
                         count++;
-                        currFrame.data[i] = 255; 
-                        currFrame.data[i+1] = 255; 
-                        currFrame.data[i+2] = 255;
                     }
                 }
-
-                if (count > 30) { 
+                if (count > 25) { 
                     const avgX = totalX / count;
                     const avgY = totalY / count;
-                    
-                    // 修正映射：確保覆蓋 0 到 window.innerWidth
-                    const padding = 0.05; // 邊緣緩衝區
-                    let normalizedX = avgX / motionCanvas.width;
-                    // 攝影機鏡像處理，並擴展感應邊界
-                    normalizedX = 1.0 - normalizedX; 
-                    normalizedX = (normalizedX - padding) / (1 - padding * 2);
-                    normalizedX = Math.max(0, Math.min(1, normalizedX));
-
-                    const nX = normalizedX * window.innerWidth;
+                    let normX = 1.0 - (avgX / motionCanvas.width);
+                    normX = (normX - 0.05) / 0.9;
+                    normX = Math.max(0, Math.min(1, normX));
+                    const nX = normX * window.innerWidth;
                     const nY = (avgY / motionCanvas.height) * window.innerHeight;
-                    
-                    state.targetX += (nX - state.targetX) * 0.25;
-                    state.targetY += (nY - state.targetY) * 0.25;
-                    
+                    state.targetX += (nX - state.targetX) * 0.22;
+                    state.targetY += (nY - state.targetY) * 0.22;
                     document.getElementById('cursor').classList.add('cursor-detecting');
                 } else {
                     document.getElementById('cursor').classList.remove('cursor-detecting');
                 }
-                motionCtx.putImageData(currFrame, 0, 0);
             }
-            
             if (!prevFrame) prevFrame = new ImageData(currFrame.width, currFrame.height);
             prevFrame.data.set(currFrame.data);
         }
 
         async function init() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } 
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } });
                 document.getElementById('video').srcObject = stream;
                 await document.getElementById('video').play();
-            } catch(e) { console.error("Camera access failed"); }
+            } catch(e) { console.error("Camera fail"); }
 
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.z = 110;
-
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.getElementById('three-container').appendChild(renderer.domElement);
-
             videoTexture = new THREE.VideoTexture(document.getElementById('video'));
 
             shaderMat = new THREE.ShaderMaterial({
@@ -348,13 +363,12 @@
 
             mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(230, 170, 128, 128), shaderMat);
             scene.add(mesh);
-
-            const lineMat = new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.2 });
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.25 });
             liquidWeb = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat);
             scene.add(liquidWeb);
-
             createFragments();
             initKnobs();
+            initInteraction();
             window.addEventListener('resize', onWindowResize);
             animate();
         }
@@ -375,19 +389,13 @@
                 new THREE.CylinderBufferGeometry(w/4, w/4, h, 8, 1),
                 new THREE.SphereBufferGeometry(w/2, 16, 12)
             ];
-
             for(let i=0; i<cols; i++) {
                 for(let j=0; j<rows; j++) {
                     const geo = geometries[Math.floor(Math.random()*geometries.length)];
-                    const p = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ 
-                        map: videoTexture, transparent: true, opacity: 0.9, color: 0xEEEEEE
-                    }));
+                    const p = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: videoTexture, transparent: true, opacity: 0.9, color: 0xFFFFFF }));
                     const ox = i*w-115+w/2, oy = j*h-85+h/2;
                     p.position.set(ox, oy, (Math.random()-0.5)*20);
-                    p.userData = { 
-                        origin: p.position.clone(), v: new THREE.Vector3(), 
-                        noise: Math.random()*100, viscosity: 0.85 + Math.random()*0.1, elasticity: 0.02
-                    };
+                    p.userData = { origin: p.position.clone(), v: new THREE.Vector3(), noise: Math.random()*100, viscosity: 0.85, elasticity: 0.02 };
                     particles.add(p);
                 }
             }
@@ -398,14 +406,21 @@
             state.isSwitching = true;
             state.targetTransition = 0.1; 
             setTimeout(() => {
+                // 順序切換模式，確保所有特效都能輪流出現
+                state.modeCounter = (state.modeCounter + 1) % 6;
+                state.subMode = state.modeCounter;
+                
+                // 相位（粒子或網格）維持隨機組合
                 state.phasePair = Math.floor(Math.random() * 3) + 1;
-                state.subMode = Math.floor(Math.random() * 6);
+                
                 shaderMat.uniforms.phasePair.value = state.phasePair;
                 shaderMat.uniforms.subMode.value = state.subMode;
                 mesh.visible = (state.phasePair === 1 || state.phasePair === 3);
                 particles.visible = (state.phasePair === 2 || state.phasePair === 3);
+                
                 state.targetTransition = 1.0;
                 state.isSwitching = false;
+                console.log(`Switch to Mode: ${state.subMode}, Phase: ${state.phasePair}`);
             }, 500);
         }
 
@@ -414,47 +429,39 @@
             const time = Date.now() * 0.001;
             shaderMat.uniforms.time.value = time;
             shaderMat.uniforms.chaos.value = state.chaos;
-
             updateMotionTracking();
-
-            // 雙倍平滑追蹤
-            state.currentX += (state.targetX - state.currentX) * 0.18;
-            state.currentY += (state.targetY - state.currentY) * 0.18;
+            state.currentX += (state.targetX - state.currentX) * 0.2;
+            state.currentY += (state.targetY - state.currentY) * 0.2;
             const cursorEl = document.getElementById('cursor');
             cursorEl.style.left = state.currentX + 'px';
             cursorEl.style.top = state.currentY + 'px';
-
             state.transition += (state.targetTransition - state.transition) * 0.1;
             shaderMat.uniforms.transition.value = state.transition;
 
-            if(Date.now() - state.lastSwitch > CYCLE_INTERVAL / (0.4 + state.entropy) && !state.isSwitching) {
+            if(Date.now() - state.lastSwitch > CYCLE_INTERVAL / (0.3 + state.entropy * 1.5) && !state.isSwitching) {
                 randomize(); state.lastSwitch = Date.now();
             }
 
-            const wm = new THREE.Vector3(
-                ((state.currentX / window.innerWidth) * 2 - 1) * 115,
-                -((state.currentY / window.innerHeight) * 2 - 1) * 85, 10
-            );
+            const wm = new THREE.Vector3(((state.currentX / window.innerWidth) * 2 - 1) * 115, -((state.currentY / window.innerHeight) * 2 - 1) * 85, 10);
 
             if(particles.visible) {
                 const points = [];
                 particles.children.forEach((p) => {
                     const ud = p.userData;
                     let target = ud.origin.clone();
-                    const t = time * (0.4 + state.chaos * 0.5);
+                    const t = time * (0.3 + state.chaos * 1.2);
                     target.x += Math.sin(t + ud.noise) * (40 * state.chaos);
-                    target.y += Math.cos(t * 0.7 + ud.noise) * (40 * state.chaos);
-
+                    target.y += Math.cos(t * 0.8 + ud.noise) * (40 * state.chaos);
                     const dist = p.position.distanceTo(wm);
-                    if(dist < 80) {
-                        const f = (1.0 - dist/80) * state.chaos * 6.0;
+                    if(dist < 85) {
+                        const f = (1.0 - dist/85) * (3.0 + state.chaos * 8.0);
                         ud.v.add(new THREE.Vector3().subVectors(p.position, wm).normalize().multiplyScalar(f));
-                        if(Math.random() > 0.5) points.push(p.position.x, p.position.y, p.position.z, wm.x, wm.y, wm.z);
+                        if(Math.random() > 0.45) points.push(p.position.x, p.position.y, p.position.z, wm.x, wm.y, wm.z);
                     }
                     ud.v.add(new THREE.Vector3().subVectors(target, p.position).multiplyScalar(ud.elasticity));
-                    ud.v.multiplyScalar(ud.viscosity);
+                    ud.v.multiplyScalar(ud.viscosity - state.chaos * 0.1);
                     p.position.add(ud.v);
-                    p.rotation.x += ud.v.length() * 0.05;
+                    p.rotation.x += ud.v.length() * 0.06;
                 });
                 liquidWeb.geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
                 liquidWeb.geometry.attributes.position.needsUpdate = true;
@@ -465,17 +472,15 @@
                 for(let i=0; i<pos.length; i+=3) {
                     const vx = pos[i], vy = pos[i+1];
                     const d = Math.sqrt((vx-wm.x)**2 + (vy-wm.y)**2);
-                    let z = Math.sin(time * 1.2 + (vx+vy)*0.04) * (4.0 + state.chaos * 7.0);
-                    if(d < 90) z += (90-d) * state.chaos * 1.5;
+                    let z = Math.sin(time * 1.3 + (vx+vy)*0.04) * (4.0 + state.chaos * 10.0);
+                    if(d < 100) z += (100-d) * (0.5 + state.chaos * 2.0);
                     pos[i+2] = z;
                 }
                 mesh.geometry.attributes.position.needsUpdate = true;
             }
-
-            scene.rotation.y = ((state.currentX / window.innerWidth) - 0.5) * 0.08;
+            scene.rotation.y = ((state.currentX / window.innerWidth) - 0.5) * 0.1;
             renderer.render(scene, camera);
         }
-
         window.onload = init;
     </script>
 </body>
