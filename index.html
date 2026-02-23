@@ -2,8 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>《自我觀測儀》系統實踐原型 v14.1 - 幾何體修復與感應優化版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>《自我觀測儀》系統實踐原型 v14.2 - 全端優化版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
@@ -14,10 +14,12 @@
             margin: 0;
             overflow: hidden;
             height: 100vh;
+            width: 100vw;
             font-family: 'Share Tech Mono', monospace;
+            touch-action: none; /* 防止瀏覽器預設手勢 */
         }
 
-        /* CRT 濾鏡：純白感性 */
+        /* CRT 濾鏡 */
         .crt-overlay {
             pointer-events: none;
             position: absolute;
@@ -30,20 +32,20 @@
 
         .main-viewport { width: 100vw; height: 100vh; position: relative; background: #000; cursor: none; }
         
-        /* 純白懸浮旋鈕介面 */
+        /* 旋鈕介面 */
         .knob-interface {
             position: absolute;
-            right: 40px;
-            bottom: 40px;
+            right: 20px;
+            bottom: 20px;
             display: flex;
-            gap: 30px;
+            gap: 20px;
             z-index: 250;
             pointer-events: auto;
         }
 
         .circular-knob {
-            width: 80px;
-            height: 80px;
+            width: 70px;
+            height: 70px;
             border-radius: 50%;
             border: 1px solid rgba(255, 255, 255, 0.1);
             background: rgba(255, 255, 255, 0.03);
@@ -53,8 +55,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.4s ease;
+            touch-action: none;
         }
+        @media (min-width: 768px) {
+            .knob-interface { right: 40px; bottom: 40px; gap: 30px; }
+            .circular-knob { width: 80px; height: 80px; }
+        }
+
         .circular-knob:hover { border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.1); }
 
         .knob-label {
@@ -77,7 +84,7 @@
             bottom: 50%;
         }
 
-        /* 感應游標：紅色標誌，但操作時會變白 */
+        /* 感應游標 */
         .custom-cursor {
             width: 40px; height: 40px; 
             border: 2px solid #FF3131;
@@ -86,11 +93,12 @@
             transform: translate(-50%, -50%);
             mix-blend-mode: screen;
             border-radius: 50%;
-            transition: border-width 0.2s, transform 0.1s ease-out;
+            transition: border-width 0.2s;
         }
         
         .cursor-detecting {
             box-shadow: 0 0 15px rgba(255, 49, 49, 0.3);
+            border-color: #FFFFFF;
         }
 
         #motion-canvas {
@@ -102,6 +110,7 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
             opacity: 0.2;
             z-index: 50;
+            display: block;
         }
     </style>
 </head>
@@ -110,8 +119,7 @@
     <div class="crt-overlay"></div>
     <div id="cursor" class="custom-cursor"></div>
 
-    <!-- 輔助感應視窗 -->
-    <canvas id="motion-canvas"></canvas>
+    <canvas id="motion-canvas" width="100" height="75"></canvas>
 
     <div class="knob-interface">
         <div class="circular-knob" id="knob-chaos">
@@ -130,7 +138,6 @@
 
     <video id="video" autoplay playsinline style="display:none"></video>
 
-    <!-- Shader：維持黏滯感的視覺分析 -->
     <script id="vertexShader" type="x-shader/x-vertex">
         varying vec2 vUv;
         uniform float time;
@@ -139,7 +146,6 @@
         void main() {
             vUv = uv;
             vec3 pos = position;
-            // 受 Chaos 旋鈕影響的波浪位移
             float wave = sin(time * 1.5 + (pos.x * 0.05 + pos.y * 0.05)) * (chaos * 15.0);
             pos.z += wave;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
@@ -156,35 +162,27 @@
 
         void main() {
             vec2 uv = vUv;
-            
-            // 數位液化扭曲
             if(chaos > 0.1) {
                 float d = distance(uv, vec2(0.5));
                 uv.x += sin(d * 10.0 - time) * 0.02 * chaos;
                 uv.y += cos(d * 10.0 - time) * 0.02 * chaos;
             }
-
-            // 隨機鏡像邏輯 (Lacanian Split)
             if(phasePair == 1 || phasePair == 3) {
                 if(subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25;
             }
-
             vec4 tex = texture2D(tDiffuse, uv);
             float luma = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
             vec4 finalCol = tex;
-
-            // 白色美學分析濾鏡
             if(phasePair == 1 || phasePair == 2) {
-                if(subMode % 5 == 0) { // White High-Key Thermal
+                if(subMode % 5 == 0) {
                     vec3 col = mix(vec3(0.1), vec3(0.7, 0.8, 1.0), luma);
                     if(luma > 0.6) col = mix(col, vec3(1.0), (luma-0.6)*2.0);
                     finalCol = mix(finalCol, vec4(col, 1.0), 0.7 * transition);
-                } else if (subMode % 5 == 1) { // Ghostly Edges
+                } else if (subMode % 5 == 1) {
                     float edge = fwidth(luma) * 22.0;
                     finalCol += vec4(vec3(edge), 0.0) * transition;
                 }
             }
-
             gl_FragColor = finalCol * transition;
         }
     </script>
@@ -194,51 +192,57 @@
             phasePair: 1, subMode: 0,
             chaos: 0.5, entropy: 0.4,
             lastSwitch: 0, transition: 0, targetTransition: 1,
-            // 坐標系統
             targetX: window.innerWidth / 2, targetY: window.innerHeight / 2,
             currentX: window.innerWidth / 2, currentY: window.innerHeight / 2,
-            // 狀態鎖定
             isMouseInteracting: false,
             isSwitching: false
         };
 
         let scene, camera, renderer, videoTexture, mesh, particles, liquidWeb;
-        let shaderMat, lagBuffer = [];
-        const MAX_LAG = 45; 
+        let shaderMat;
         const CYCLE_INTERVAL = 8000;
 
-        // --- 旋鈕控制修復：加入優先權鎖定 ---
+        // --- 旋鈕控制優化：支援觸控與滑鼠 ---
         function initKnobs() {
             const setupKnob = (id, key) => {
                 const knob = document.getElementById(id);
                 const hand = document.getElementById('hand-' + id.split('-')[1]);
                 let isDragging = false;
+                let lastY = 0;
                 
                 const updateHand = (val) => {
                     hand.style.transform = `translateX(-50%) rotate(${val * 280 - 140}deg)`;
                 };
 
-                knob.onmousedown = (e) => {
+                const startDragging = (y, e) => {
                     isDragging = true;
-                    state.isMouseInteracting = true; // 鎖定感應器，優先滑鼠操作
-                    e.stopPropagation();
+                    state.isMouseInteracting = true;
+                    lastY = y;
+                    if(e.cancelable) e.preventDefault();
                 };
 
-                window.addEventListener('mouseup', () => {
-                    if(isDragging) {
-                        isDragging = false;
-                        state.isMouseInteracting = false; // 解放感應器
-                    }
-                });
-
-                window.addEventListener('mousemove', (e) => {
+                const moveDragging = (y) => {
                     if (!isDragging) return;
-                    state[key] = Math.max(0, Math.min(1, state[key] - e.movementY * 0.01));
+                    const delta = lastY - y;
+                    state[key] = Math.max(0, Math.min(1, state[key] + delta * 0.005));
                     updateHand(state[key]);
-                    // 手動操作時同步更新 target 座標到旋鈕位置，避免游標亂跳
-                    state.targetX = e.clientX;
-                    state.targetY = e.clientY;
-                });
+                    lastY = y;
+                };
+
+                const stopDragging = () => {
+                    isDragging = false;
+                    state.isMouseInteracting = false;
+                };
+
+                // Mouse Events
+                knob.onmousedown = (e) => startDragging(e.clientY, e);
+                window.addEventListener('mousemove', (e) => moveDragging(e.clientY));
+                window.addEventListener('mouseup', stopDragging);
+
+                // Touch Events
+                knob.ontouchstart = (e) => startDragging(e.touches[0].clientY, e);
+                window.addEventListener('touchmove', (e) => moveDragging(e.touches[0].clientY), { passive: false });
+                window.addEventListener('touchend', stopDragging);
 
                 updateHand(state[key]);
             };
@@ -246,56 +250,60 @@
             setupKnob('knob-entropy', 'entropy');
         }
 
-        // --- 動態感應優化：修復重複偵測與位移累積問題 ---
+        // --- 動態感應優化：提升平滑度 ---
         let prevFrame = null;
         const motionCanvas = document.getElementById('motion-canvas');
         const motionCtx = motionCanvas.getContext('2d');
 
         function updateMotionTracking() {
-            if (state.isMouseInteracting) return; // 滑鼠操作時跳過感應
+            if (state.isMouseInteracting) return;
 
             const v = document.getElementById('video');
             if (v.readyState !== v.HAVE_ENOUGH_DATA) return;
 
-            // 繪製當前影格到隱藏 Canvas
             motionCtx.drawImage(v, 0, 0, motionCanvas.width, motionCanvas.height);
             const currFrame = motionCtx.getImageData(0, 0, motionCanvas.width, motionCanvas.height);
             
             if (prevFrame) {
                 let totalX = 0, totalY = 0, count = 0;
-                const threshold = 35; // 靈敏度門檻
+                const threshold = 30; 
 
                 for (let i = 0; i < currFrame.data.length; i += 4) {
-                    // 計算影格差分
-                    const rD = Math.abs(currFrame.data[i] - prevFrame.data[i]);
-                    const gD = Math.abs(currFrame.data[i+1] - prevFrame.data[i+1]);
-                    const bD = Math.abs(currFrame.data[i+2] - prevFrame.data[i+2]);
-                    const diff = (rD + gD + bD) / 3;
+                    const diff = (Math.abs(currFrame.data[i] - prevFrame.data[i]) +
+                                  Math.abs(currFrame.data[i+1] - prevFrame.data[i+1]) +
+                                  Math.abs(currFrame.data[i+2] - prevFrame.data[i+2])) / 3;
 
                     if (diff > threshold) {
                         const idx = i / 4;
                         totalX += idx % motionCanvas.width;
                         totalY += Math.floor(idx / motionCanvas.width);
                         count++;
-                        // 視覺回饋
                         currFrame.data[i] = 255; currFrame.data[i+1] = 255; currFrame.data[i+2] = 255;
                     }
                 }
 
-                if (count > 40) { 
+                if (count > 50) { 
                     const avgX = totalX / count;
                     const avgY = totalY / count;
-                    // 映射並處理攝影機鏡像
-                    state.targetX = (1 - (avgX / motionCanvas.width)) * window.innerWidth;
-                    state.targetY = (avgY / motionCanvas.height) * window.innerHeight;
+                    // 平滑映射
+                    const nX = (1 - (avgX / motionCanvas.width)) * window.innerWidth;
+                    const nY = (avgY / motionCanvas.height) * window.innerHeight;
+                    
+                    // 使用輕微的 Lerp 預處理目標座標，減少抖動
+                    state.targetX += (nX - state.targetX) * 0.2;
+                    state.targetY += (nY - state.targetY) * 0.2;
+                    
                     document.getElementById('cursor').classList.add('cursor-detecting');
                 } else {
                     document.getElementById('cursor').classList.remove('cursor-detecting');
                 }
                 motionCtx.putImageData(currFrame, 0, 0);
             }
-            // 關鍵：將當前影格克隆後存為 prevFrame，確保下一影格計算的是「淨變動」
-            prevFrame = new ImageData(new Uint8ClampedArray(currFrame.data), currFrame.width, currFrame.height);
+            
+            if (!prevFrame) {
+                prevFrame = new ImageData(currFrame.width, currFrame.height);
+            }
+            prevFrame.data.set(currFrame.data);
         }
 
         async function init() {
@@ -311,6 +319,7 @@
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.setClearColor(0x000000, 1);
             document.getElementById('three-container').appendChild(renderer.domElement);
 
@@ -330,26 +339,33 @@
             mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(230, 170, 128, 128), shaderMat);
             scene.add(mesh);
 
-            // 白色黏液連結網
             const lineMat = new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.15 });
             liquidWeb = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat);
             scene.add(liquidWeb);
 
             createFragments();
             initKnobs();
+            
+            // 視窗尺寸重置
+            window.addEventListener('resize', onWindowResize);
+            
             animate();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
         function createFragments() {
             particles = new THREE.Group();
             const cols = 15, rows = 12;
             const w = 230/cols, h = 170/rows;
-            
-            // 定義受支援的幾何體（移除不支援的 CapsuleBufferGeometry）
             const geometries = [
                 new THREE.TorusKnotBufferGeometry(w/3.5, 0.1, 32, 8),
                 new THREE.OctahedronBufferGeometry(w/2, 1),
-                new THREE.CylinderBufferGeometry(w/4, w/4, h, 8, 1), // 用圓柱體代替膠囊
+                new THREE.CylinderBufferGeometry(w/4, w/4, h, 8, 1),
                 new THREE.SphereBufferGeometry(w/2, 16, 12)
             ];
 
@@ -394,9 +410,9 @@
 
             updateMotionTracking();
 
-            // 游標與感應點平滑 Lerp
-            state.currentX += (state.targetX - state.currentX) * 0.12;
-            state.currentY += (state.targetY - state.currentY) * 0.12;
+            // 游標渲染平滑化
+            state.currentX += (state.targetX - state.currentX) * 0.15;
+            state.currentY += (state.targetY - state.currentY) * 0.15;
             const cursorEl = document.getElementById('cursor');
             cursorEl.style.left = state.currentX + 'px';
             cursorEl.style.top = state.currentY + 'px';
@@ -408,7 +424,6 @@
                 randomize(); state.lastSwitch = Date.now();
             }
 
-            // 將游標座標轉換為 3D 世界座標
             const wm = new THREE.Vector3(
                 ((state.currentX / window.innerWidth) * 2 - 1) * 115,
                 -((state.currentY / window.innerHeight) * 2 - 1) * 85, 10
@@ -416,7 +431,7 @@
 
             if(particles.visible) {
                 const points = [];
-                particles.children.forEach((p, i) => {
+                particles.children.forEach((p) => {
                     const ud = p.userData;
                     let target = ud.origin.clone();
                     const t = time * (0.3 + state.chaos * 0.4);
