@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-  <title>SELF_OBSERVER :: v17.0.0</title>
+  <title>SELF_OBSERVER :: v23</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -11,579 +11,478 @@
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
     *{box-sizing:border-box;margin:0;padding:0;}
     body{background:#000;overflow:hidden;font-family:'Share Tech Mono',monospace;color:#fff;user-select:none;touch-action:none;}
-    #crt{pointer-events:none;position:fixed;inset:0;z-index:40;
+
+    /* CRT */
+    #crt{pointer-events:none;position:fixed;inset:0;z-index:600;
          background:linear-gradient(rgba(18,16,16,0) 50%,rgba(255,255,255,.01) 50%),
                     linear-gradient(90deg,rgba(255,255,255,.005),rgba(255,255,255,.005));
          background-size:100% 3px,3px 100%;opacity:.8;}
-    #cur{position:fixed;width:48px;height:48px;border:1px solid #ef4444;border-radius:50%;
-         z-index:100;pointer-events:none;transform:translate(-50%,-50%);
+    #cur{position:fixed;width:48px;height:48px;border:1px solid rgba(255,255,255,.5);border-radius:50%;
+         z-index:700;pointer-events:none;transform:translate(-50%,-50%);
          mix-blend-mode:screen;transition:width .3s,height .3s,border-color .3s;}
-    #cur.on{width:65px;height:65px;border-width:3px;border-color:#fff;box-shadow:0 0 25px rgba(255,49,49,.5);}
+    #cur.on{width:65px;height:65px;border-width:2px;border-color:#fff;box-shadow:0 0 20px rgba(255,255,255,.4);}
 
-    /* Controls */
-    #controls{position:absolute;right:40px;bottom:40px;display:flex;flex-direction:column;
-              align-items:flex-end;gap:30px;z-index:250;pointer-events:auto;}
+    /* ── 全畫面白色電視雜訊層 ── */
+    #noise-cv{
+      position:fixed;inset:0;z-index:45;
+      width:100%;height:100%;
+      pointer-events:none;
+      opacity:0;
+    }
+
+    /* ── AI 結果圖 ── */
+    #ai-img{
+      position:fixed;inset:0;z-index:36;
+      width:100%;height:100%;object-fit:cover;
+      mix-blend-mode:normal;
+      opacity:0;pointer-events:none;
+      filter:saturate(0.12) contrast(1.5) brightness(0.55);
+      image-rendering:pixelated;
+    }
+
+    /* ══════════════════════════════════════════════
+       左側收納面板 — 全白色系
+    ══════════════════════════════════════════════ */
+    #sidebar{
+      position:fixed;left:0;top:0;bottom:0;z-index:500;
+      display:flex;align-items:stretch;pointer-events:auto;
+    }
+    #sidebar-panel{
+      width:0;overflow:hidden;
+      background:rgba(0,0,0,.92);
+      border-right:1px solid rgba(255,255,255,.1);
+      transition:width .4s cubic-bezier(.4,0,.2,1);
+      display:flex;flex-direction:column;
+    }
+    #sidebar.open #sidebar-panel{width:220px;}
+
+    #sidebar-header{
+      padding:16px 14px 10px;
+      font-size:7px;letter-spacing:.4em;color:rgba(255,255,255,.4);
+      border-bottom:1px solid rgba(255,255,255,.07);
+      flex-shrink:0;white-space:nowrap;
+    }
+    #sidebar-scroll{
+      flex:1;overflow-y:auto;overflow-x:hidden;padding:8px 0 20px;
+    }
+    #sidebar-scroll::-webkit-scrollbar{width:2px;}
+    #sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);}
+
+    .rec{
+      padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);
+      cursor:pointer;transition:background .2s;
+    }
+    .rec:hover{background:rgba(255,255,255,.05);}
+    .rec-time{font-size:7px;color:rgba(255,255,255,.3);letter-spacing:.12em;margin-bottom:5px;}
+    .rec-thumbs{display:flex;gap:5px;align-items:center;margin-bottom:5px;}
+    .rec-thumb{
+      width:52px;height:39px;object-fit:cover;flex-shrink:0;
+      border:1px solid rgba(255,255,255,.1);
+      filter:saturate(.35) contrast(1.1);
+    }
+    .rec-thumb.ai{border-color:rgba(255,255,255,.22);}
+    .rec-arrow{font-size:8px;color:rgba(255,255,255,.2);}
+    .rec-meta{font-size:6.5px;color:rgba(255,255,255,.2);letter-spacing:.08em;}
+
+    /* 拉開按鈕 */
+    #sidebar-toggle{
+      width:20px;flex-shrink:0;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.75);
+      border-right:1px solid rgba(255,255,255,.08);
+      cursor:pointer;gap:5px;
+      transition:background .2s;
+    }
+    #sidebar-toggle:hover{background:rgba(255,255,255,.04);}
+    .tdot{
+      width:3px;height:3px;border-radius:50%;
+      background:rgba(255,255,255,.3);
+      transition:background .2s;
+    }
+    #sidebar.open .tdot{background:rgba(255,255,255,.7);}
+    #toggle-lbl{
+      font-size:7px;letter-spacing:.18em;color:rgba(255,255,255,.25);
+      writing-mode:vertical-rl;transform:rotate(180deg);margin-top:6px;
+    }
+
+    /* ── Controls — 全白色系 ── */
+    #controls{
+      position:absolute;right:40px;bottom:40px;
+      display:flex;flex-direction:column;align-items:flex-end;gap:30px;
+      z-index:850;pointer-events:auto;
+    }
     .kw{display:flex;flex-direction:column;align-items:center;gap:12px;transition:opacity .5s;}
     .kw.locked{opacity:.25;pointer-events:none;}
-    .kl{font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.15em;text-transform:uppercase;}
-    .knob{width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,.15);
-          display:flex;align-items:center;justify-content:center;position:relative;
-          background:radial-gradient(circle,rgba(255,255,255,.1) 0%,transparent 70%);
-          cursor:ns-resize;transition:border-color .3s,transform .3s,box-shadow .3s;}
-    .knob:hover{border-color:rgba(255,255,255,.4);}
-    .knob.drag{border-color:rgba(255,255,255,.8);transform:scale(1.08);box-shadow:0 0 20px rgba(255,255,255,.1);}
-    .needle{position:absolute;width:2px;height:42%;background:rgba(255,255,255,.9);
-            box-shadow:0 0 10px rgba(255,255,255,.6);transform-origin:bottom center;
-            bottom:50%;left:calc(50% - 1px);pointer-events:none;}
-    .ibtn{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.03);
-          border:1px solid rgba(255,255,255,.15);cursor:pointer;transition:background .7s,box-shadow .7s;}
-    .ibtn.blue {background:#60a5fa;box-shadow:0 0 15px rgba(96,165,250,.8);border-color:transparent;}
-    .ibtn.green{background:#4ade80;box-shadow:0 0 15px rgba(74,222,128,.8);border-color:transparent;animation:p1 1.5s infinite;}
-    .ibtn.amber{background:#fbbf24;box-shadow:0 0 15px rgba(251,191,36,.9);border-color:transparent;animation:p2 .6s infinite;}
-    .ibtn.white{background:#fff;box-shadow:0 0 18px rgba(255,255,255,.9);border-color:transparent;}
-    @keyframes p1{0%,100%{opacity:1}50%{opacity:.5}}
-    @keyframes p2{0%,100%{opacity:1}50%{opacity:.1}}
-    #eeg{position:absolute;left:24px;bottom:110px;z-index:50;font-size:10px;line-height:1.8;color:rgba(255,255,255,.25);pointer-events:none;}
+    .kl{font-size:9px;color:rgba(255,255,255,.25);letter-spacing:.15em;text-transform:uppercase;}
+    .knob{
+      width:64px;height:64px;border-radius:50%;
+      border:1px solid rgba(255,255,255,.18);
+      display:flex;align-items:center;justify-content:center;position:relative;
+      background:radial-gradient(circle,rgba(255,255,255,.08) 0%,transparent 70%);
+      cursor:ns-resize;transition:border-color .3s,transform .3s;
+    }
+    .knob:hover{border-color:rgba(255,255,255,.45);}
+    .knob.drag{border-color:#fff;transform:scale(1.08);}
+    .needle{
+      position:absolute;width:2px;height:42%;background:#fff;
+      box-shadow:0 0 8px rgba(255,255,255,.5);
+      transform-origin:bottom center;bottom:50%;left:calc(50% - 1px);pointer-events:none;
+    }
+    .ibtn{
+      width:16px;height:16px;border-radius:50%;
+      background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.18);
+      cursor:pointer;transition:all .5s;
+    }
+    .ibtn.on  {background:#fff;box-shadow:0 0 16px rgba(255,255,255,.9);border-color:transparent;}
+    .ibtn.pulse{background:rgba(255,255,255,.6);box-shadow:0 0 12px rgba(255,255,255,.5);border-color:transparent;animation:pw .7s infinite;}
+    .ibtn.slow {background:rgba(255,255,255,.4);box-shadow:0 0 10px rgba(255,255,255,.3);border-color:transparent;animation:ps 1.5s infinite;}
+    @keyframes pw{0%,100%{opacity:1}50%{opacity:.1}}
+    @keyframes ps{0%,100%{opacity:1}50%{opacity:.4}}
 
-    /* ── AI PROCESS CANVAS (full screen, above Three.js) ── */
-    #ai-canvas{
-      position:fixed;inset:0;z-index:35;pointer-events:none;
-      width:100%;height:100%;
-      opacity:0;
-      transition:none; /* JS controls this */
+    #eeg-hud{
+      position:absolute;left:32px;bottom:40px;z-index:500;
+      font-size:10px;line-height:1.8;color:rgba(255,255,255,.22);pointer-events:none;
     }
-
-    /* ── AI Terminal HUD (top-left) ──────────────────────── */
-    #ai-terminal{
-      position:absolute;left:24px;top:24px;z-index:200;pointer-events:none;
-      width:min(340px,42vw);
-      border:1px solid rgba(255,180,0,.1);
-      background:rgba(0,0,0,.55);
-      padding:14px 16px 16px;
-      opacity:0;
-      transition:opacity .6s;
+    #uid-tag{
+      position:absolute;top:18px;right:32px;font-size:9px;
+      color:rgba(255,255,255,.35);letter-spacing:.2em;display:none;z-index:810;
     }
-    #ai-terminal.show{opacity:1;}
-    #ai-term-title{
-      font-size:7px;letter-spacing:.4em;color:rgba(255,180,0,.4);
-      margin-bottom:10px;display:flex;align-items:center;gap:8px;
-    }
-    #ai-term-dot{
-      width:6px;height:6px;border-radius:50%;background:rgba(255,180,0,.2);
-      flex-shrink:0;transition:background .3s,box-shadow .3s;
-    }
-    #ai-term-dot.hot{background:rgba(255,80,0,.9);box-shadow:0 0 12px rgba(255,80,0,.8);animation:p2 .5s infinite;}
-    #ai-term-dot.done{background:rgba(255,180,0,.7);box-shadow:0 0 8px rgba(255,180,0,.5);animation:none;}
-
-    /* Log lines */
-    #ai-log{font-size:9px;line-height:2.0;color:rgba(255,255,255,.3);min-height:80px;}
-    #ai-log .line{display:block;overflow:hidden;white-space:nowrap;
-                  animation:typeIn .4s steps(40) forwards;}
-    #ai-log .line.dim{color:rgba(255,255,255,.12);}
-    #ai-log .line.hot{color:rgba(255,180,0,.7);}
-    #ai-log .line.done{color:rgba(255,255,255,.5);}
-    @keyframes typeIn{from{width:0}to{width:100%}}
-
-    /* Progress bar */
-    #ai-prog-outer{height:1px;background:rgba(255,180,0,.08);margin-top:10px;position:relative;overflow:hidden;}
-    #ai-prog-inner{height:100%;background:rgba(255,180,0,.6);width:0%;transition:width .15s linear;}
-    #ai-prog-glow{
-      position:absolute;right:0;top:-3px;width:6px;height:7px;
-      background:rgba(255,180,0,.9);box-shadow:0 0 8px rgba(255,180,0,1);
-      opacity:0;transition:opacity .3s;
-    }
-    #ai-prog-outer.active #ai-prog-glow{opacity:1;}
-
-    /* Prompt line */
-    #ai-prompt-line{
-      font-size:7.5px;color:rgba(255,180,0,.0);letter-spacing:.03em;
-      line-height:1.55;margin-top:8px;transition:color 1s;
-      white-space:normal;word-break:break-all;
-    }
-    #ai-prompt-line.show{color:rgba(255,180,0,.32);}
   </style>
 </head>
 <body>
-
 <script>
   const FIREBASE_CONFIG = typeof __firebase_config!=='undefined'
-    ?JSON.parse(__firebase_config)
-    :{apiKey:"",authDomain:"",projectId:"",storageBucket:"",messagingSenderId:"",appId:""};
+    ? JSON.parse(__firebase_config)
+    : {apiKey:"",authDomain:"",projectId:"",storageBucket:"",messagingSenderId:"",appId:""};
 </script>
 
 <div id="crt"></div>
 <div id="cur"></div>
-<div id="container" style="width:100vw;height:100vh;cursor:none;position:relative;"></div>
+<div id="container" style="width:100vw;height:100vh;cursor:none;position:relative;z-index:10;"></div>
 <video id="video" style="display:none;" playsinline muted autoplay></video>
 <canvas id="mc" width="100" height="75"
-  style="position:absolute;bottom:20px;left:20px;opacity:.08;border:1px solid rgba(255,255,255,.05);z-index:50;pointer-events:none;"></canvas>
+  style="position:absolute;bottom:20px;left:20px;opacity:.06;z-index:50;pointer-events:none;"></canvas>
 
-<!-- AI process canvas -->
-<canvas id="ai-canvas"></canvas>
+<!-- 白色電視雜訊 -->
+<canvas id="noise-cv"></canvas>
 
-<!-- AI Terminal HUD -->
-<div id="ai-terminal">
-  <div id="ai-term-title">
-    <div id="ai-term-dot"></div>
-    <span>GENERATIVE_PROCESS :: LOG</span>
+<!-- AI 圖像 — 無 crossorigin -->
+<img id="ai-img" src="" alt=""/>
+
+<!-- 左側面板 -->
+<div id="sidebar">
+  <div id="sidebar-panel">
+    <div id="sidebar-header">OBSERVATION_LOG</div>
+    <div id="sidebar-scroll"></div>
   </div>
-  <div id="ai-log"></div>
-  <div id="ai-prog-outer">
-    <div id="ai-prog-inner"></div>
-    <div id="ai-prog-glow"></div>
+  <div id="sidebar-toggle" onclick="toggleSidebar()">
+    <div class="tdot"></div>
+    <div class="tdot"></div>
+    <div class="tdot"></div>
+    <div id="toggle-lbl">LOG</div>
   </div>
-  <div id="ai-prompt-line">—</div>
 </div>
 
 <!-- Controls -->
 <div id="controls">
   <div style="display:flex;gap:24px;margin-bottom:8px;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
-      <span style="font-size:7px;color:rgba(255,255,255,.2);letter-spacing:.25em;">驗證_API</span>
+      <span style="font-size:7px;color:rgba(255,255,255,.2);letter-spacing:.25em;">驗證</span>
       <button id="btn-g" class="ibtn"></button>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
-      <span style="font-size:7px;color:rgba(255,255,255,.2);letter-spacing:.25em;">腦波_連結</span>
+      <span style="font-size:7px;color:rgba(255,255,255,.2);letter-spacing:.25em;">腦波</span>
       <button id="btn-e" class="ibtn"></button>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
-      <span style="font-size:7px;color:rgba(255,180,0,.3);letter-spacing:.25em;">AI_觀察</span>
+      <span style="font-size:7px;color:rgba(255,255,255,.25);letter-spacing:.25em;">AI</span>
       <button id="btn-ai" class="ibtn"></button>
     </div>
   </div>
   <div style="display:flex;gap:40px;">
-    <div class="kw" id="wc"><span class="kl">混亂_模組</span>
+    <div class="kw" id="wc"><span class="kl">混亂</span>
       <div class="knob" id="kc"><div class="needle" id="nc"></div></div></div>
-    <div class="kw" id="we"><span class="kl">熵增_模組</span>
+    <div class="kw" id="we"><span class="kl">熵增</span>
       <div class="knob" id="ke"><div class="needle" id="ne"></div></div></div>
   </div>
 </div>
 
-<div id="uid-tag" style="position:absolute;top:24px;right:32px;font-size:9px;
-     color:rgba(96,165,250,.5);letter-spacing:.2em;display:none;"></div>
-<div id="eeg">— 未連線</div>
+<div id="uid-tag"></div>
+<div id="eeg-hud">— 未連線</div>
 
 <script>
-/* ═══════════════════════════════════════════════
+/* ════════════════════════════════
    STATE
-═══════════════════════════════════════════════ */
-let chaos=.5,entropy=.4;
-let eegActive=false;
-let scene,camera,renderer,shaderMat,mesh,particles,liquidWeb,videoTex;
-let prevFrame=null;
-
+════════════════════════════════ */
+let chaos=.5, entropy=.4, eegActive=false, generating=false;
+let scene, camera, renderer, shaderMat, mesh, particles, liquidWeb, videoTex, prevFrame=null;
 const vs={
   tx:innerWidth/2,ty:innerHeight/2,cx:innerWidth/2,cy:innerHeight/2,
   lastSwitch:Date.now(),trans:1,tTrans:1,
-  interacting:false,subMode:0,modeCount:0,phase:1,
+  subMode:0,modeCount:0,interacting:false,
 };
 
-/* ═══════════════════════════════════════════════
-   AI CANVAS  — the deliberate construction effect
-═══════════════════════════════════════════════ */
-const aiCv  = document.getElementById('ai-canvas');
-const aiCtx = aiCv.getContext('2d');
-
-function resizeAICanvas(){
-  aiCv.width=innerWidth; aiCv.height=innerHeight;
-}
-resizeAICanvas();
-window.addEventListener('resize',resizeAICanvas);
-
-/* ── off-screen work canvas for pixel ops ─── */
-const offCv  = document.createElement('canvas');
-const offCtx = offCv.getContext('2d');
-
-let aiState={
-  phase:'idle',   // idle|loading|constructing|settled|fading
-  img:null,
-  constructT:0,   // 0→1 progress
-  constructDur:3800,  // ms to build up
-  settleTimer:null,
-  loopTimer:null,
-  lastGen:0,
-};
-
-const LOG_EL  = document.getElementById('ai-log');
-const PROG_EL = document.getElementById('ai-prog-inner');
-const PROG_OUTER = document.getElementById('ai-prog-outer');
-const DOT_EL  = document.getElementById('ai-term-dot');
-const TERM_EL = document.getElementById('ai-terminal');
-const PROMPT_EL = document.getElementById('ai-prompt-line');
-
-let logLines=[];
-function addLog(text,cls=''){
-  const s=document.createElement('span');
-  s.className='line'+(cls?' '+cls:'');
-  s.textContent=text;
-  LOG_EL.appendChild(s);
-  logLines.push(s);
-  if(logLines.length>7){
-    logLines[0].classList.add('dim');
-    if(logLines.length>10) logLines.shift().remove();
-  }
-  LOG_EL.scrollTop=LOG_EL.scrollHeight;
-}
-function setProgress(v){
-  PROG_EL.style.width=(v*100).toFixed(1)+'%';
-  PROG_OUTER.classList.toggle('active',v>0&&v<1);
+/* ════════════════════════════════
+   SIDEBAR
+════════════════════════════════ */
+let sidebarOpen=false;
+function toggleSidebar(){
+  sidebarOpen=!sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('open',sidebarOpen);
 }
 
-/* ── DRAW PHASES ──────────────────────────────
-   Phase A  (loading):  animated static noise + scan bars
-   Phase B  (constructing): pixelated → medium → sharp
-   Phase C  (settled):  final image with subtle drift
-   Phase D  (fading):   dissolves back to noise, fades out
-─────────────────────────────────────────────── */
+/* ════════════════════════════════
+   HISTORY
+════════════════════════════════ */
+const MODE_NAMES=['BIOMETRIC','WIREFRAME','NEGATIVE','SYMMETRY','PIXEL','CHROMA'];
+let history=[];
 
-/* noise helper */
-function drawNoise(ctx,w,h,alpha,blockSize){
-  const bw=Math.ceil(w/blockSize),bh=Math.ceil(h/blockSize);
-  for(let x=0;x<bw;x++) for(let y=0;y<bh;y++){
-    const v=Math.random()*255|0;
-    ctx.fillStyle=`rgba(${v},${Math.floor(v*.6)},${Math.floor(v*.3)},${alpha})`;
-    ctx.fillRect(x*blockSize,y*blockSize,blockSize,blockSize);
-  }
+function addRecord(s1url, s2url, mode, c, e){
+  const ts=new Date();
+  const t=`${ts.getHours().toString().padStart(2,'0')}:${ts.getMinutes().toString().padStart(2,'0')}:${ts.getSeconds().toString().padStart(2,'0')}`;
+  history.unshift({t, s1:s1url, s2:s2url, mode, c, e});
+  if(history.length>20) history.pop();
+  renderHistory();
 }
 
-/* scanline sweep */
-function drawScanBar(ctx,w,h,t){
-  const y=(t%1)*h;
-  const g=ctx.createLinearGradient(0,y-40,0,y+40);
-  g.addColorStop(0,'rgba(255,180,0,0)');
-  g.addColorStop(.5,'rgba(255,180,0,0.18)');
-  g.addColorStop(1,'rgba(255,180,0,0)');
-  ctx.fillStyle=g;
-  ctx.fillRect(0,y-40,w,80);
+function renderHistory(){
+  const list=document.getElementById('sidebar-scroll');
+  list.innerHTML='';
+  history.forEach(rec=>{
+    const div=document.createElement('div');
+    div.className='rec';
+    const s1html = rec.s1
+      ? `<img class="rec-thumb" src="${rec.s1}" alt=""/>`
+      : `<div class="rec-thumb" style="background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:6px;color:rgba(255,255,255,.2)">S1</div>`;
+    const s2html = rec.s2
+      ? `<img class="rec-thumb ai" src="${rec.s2}" alt=""/>`
+      : `<div class="rec-thumb ai" style="background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:6px;color:rgba(255,255,255,.2)">S2</div>`;
+    div.innerHTML=`
+      <div class="rec-time">${rec.t} · ${MODE_NAMES[rec.mode]||rec.mode}</div>
+      <div class="rec-thumbs">
+        ${s1html}
+        <span class="rec-arrow">›</span>
+        ${s2html}
+      </div>
+      <div class="rec-meta">C ${rec.c.toFixed(2)} · E ${rec.e.toFixed(2)}</div>
+    `;
+    if(rec.s2) div.addEventListener('click',()=>{
+      const el=document.getElementById('ai-img');
+      el.style.transition='opacity .5s';el.style.opacity='0';
+      setTimeout(()=>{
+        el.src=rec.s2;
+        el.style.imageRendering='auto';
+        el.style.filter='saturate(.72) contrast(1.02) brightness(.95)';
+        el.style.transition='opacity 1s';el.style.opacity='.95';
+      },300);
+    });
+    list.appendChild(div);
+  });
 }
 
-/* pixelated image at given resolution */
-function drawPixelated(srcImg,ctx,w,h,res){
-  if(!srcImg) return;
-  offCv.width=res; offCv.height=res;
-  offCtx.drawImage(srcImg,0,0,res,res);
-  ctx.imageSmoothingEnabled=false;
-  ctx.drawImage(offCv,0,0,w,h);
-  ctx.imageSmoothingEnabled=true;
-}
+/* ════════════════════════════════
+   WHITE TV NOISE
+════════════════════════════════ */
+const noiseCv  = document.getElementById('noise-cv');
+const noiseCtx = noiseCv.getContext('2d');
+let noisePhase='off', noiseT=0, noiseBuildStart=0;
 
-/* scanline pass */
-function applyScanlines(ctx,w,h,intensity){
-  ctx.save();
-  ctx.globalAlpha=intensity;
-  for(let y=0;y<h;y+=3){
-    ctx.fillStyle='#000';
-    ctx.fillRect(0,y,w,1);
-  }
-  ctx.restore();
-}
+function resizeNoise(){ noiseCv.width=innerWidth; noiseCv.height=innerHeight; }
+resizeNoise();
 
-/* vignette */
-function applyVignette(ctx,w,h){
-  const vg=ctx.createRadialGradient(w/2,h/2,h*.2,w/2,h/2,h*.85);
-  vg.addColorStop(0,'rgba(0,0,0,0)');
-  vg.addColorStop(1,'rgba(0,0,0,0.75)');
-  ctx.fillStyle=vg;
-  ctx.fillRect(0,0,w,h);
-}
+function drawNoise(){
+  if(noisePhase==='off') return;
+  const w=noiseCv.width, h=noiseCv.height;
+  noiseCtx.clearRect(0,0,w,h);
+  noiseT+=.055;   // 快速
 
-/* RGB glitch shift */
-function applyGlitch(ctx,img,w,h,amt){
-  if(!img||amt<.005) return;
-  ctx.save();
-  ctx.globalCompositeOperation='screen';
-  ctx.globalAlpha=.45;
-  // R
-  ctx.drawImage(img,-amt*w,0,w,h);
-  // B
-  ctx.globalAlpha=.35;
-  ctx.drawImage(img,amt*w,0,w,h);
-  ctx.restore();
-}
-
-/* horizontal glitch bar tears */
-function applyTears(ctx,img,w,h,chaos){
-  if(!img) return;
-  const n=Math.floor(chaos*6)+1;
-  ctx.save();
-  for(let i=0;i<n;i++){
-    if(Math.random()>.55) continue;
-    const sy=Math.random()*h;
-    const sh=Math.random()*20+4;
-    const dx=(Math.random()-.5)*40*chaos;
-    ctx.drawImage(img,0,sy,w,sh,dx,sy,w,sh);
-  }
-  ctx.restore();
-}
-
-/* ── Master render each frame ─────────────────
-   Called from Three.js animate()
-─────────────────────────────────────────────── */
-let frameT=0;
-function renderAICanvas(){
-  const w=aiCv.width,h=aiCv.height;
-  aiCtx.clearRect(0,0,w,h);
-  frameT+=.016;
-
-  if(aiState.phase==='loading'){
-    /* ── Animated static noise while waiting for Pollinations ── */
-    drawNoise(aiCtx,w,h,.55,Math.random()<.3?6:12);
-    drawScanBar(aiCtx,w,h,frameT*.5);
-    // horizontal glitch bars
-    if(Math.random()<.15){
-      const y=Math.random()*h, sh=Math.random()*8+2;
-      aiCtx.save();
-      aiCtx.fillStyle=`rgba(255,${Math.random()*60|0},0,${Math.random()*.4})`;
-      aiCtx.fillRect(0,y,w,sh);
-      aiCtx.restore();
+  if(noisePhase==='loading'){
+    // 細密白色雜訊
+    const bsz=Math.random()<.55?2:5;
+    const bw=Math.ceil(w/bsz), bh=Math.ceil(h/bsz);
+    for(let x=0;x<bw;x++) for(let y=0;y<bh;y++){
+      const v=Math.random();
+      noiseCtx.fillStyle=`rgba(255,255,255,${v*.32})`;
+      noiseCtx.fillRect(x*bsz,y*bsz,bsz,bsz);
     }
-    setProgress((.5+Math.sin(frameT*3)*.3));
-    aiCv.style.opacity='.8';
-
-  } else if(aiState.phase==='constructing'){
-    /* ── Progressive build: noise→pixelated→sharp ── */
-    const t=Math.min(1,(Date.now()-aiState.constructStart)/aiState.constructDur);
-    aiState.constructT=t;
-    setProgress(t);
-
-    const w=aiCv.width,h=aiCv.height;
-
-    if(t<.18){
-      /* pure noise, image fragments appearing */
-      drawNoise(aiCtx,w,h,.5,16);
-      if(aiState.img && t>.06){
-        aiCtx.save();
-        aiCtx.globalAlpha=(t-.06)/.12*0.3;
-        drawPixelated(aiState.img,aiCtx,w,h,8);
-        aiCtx.restore();
-      }
-      drawScanBar(aiCtx,w,h,frameT*.9);
-
-    } else if(t<.40){
-      /* blocky 16×16 mosaic sweeping in */
-      const p=(t-.18)/.22;
-      const tileRes=Math.floor(8+p*24);  // 8→32
-      drawNoise(aiCtx,w,h,(1-p)*.35,tileRes);
-      aiCtx.save();
-      aiCtx.globalAlpha=p*.85;
-      drawPixelated(aiState.img,aiCtx,w,h,tileRes);
-      aiCtx.restore();
-      applyGlitch(aiCtx,aiState.img,w,h,(1-p)*.03);
-      drawScanBar(aiCtx,w,h,frameT*.7);
-
-    } else if(t<.68){
-      /* medium res — image recognisable, still blocky */
-      const p=(t-.40)/.28;
-      const tileRes=Math.floor(32+p*128);  // 32→160
-      aiCtx.save();
-      aiCtx.globalAlpha=.88;
-      drawPixelated(aiState.img,aiCtx,w,h,tileRes);
-      aiCtx.restore();
-      applyGlitch(aiCtx,aiState.img,w,h,(1-p)*.018);
-      applyTears(aiCtx,aiState.img,w,h,(1-p)*chaos);
-      if(Math.random()<.08) drawNoise(aiCtx,w,h,.12,tileRes);
-      drawScanBar(aiCtx,w,h,frameT*.5);
-
-    } else {
-      /* sharpening to final */
-      const p=(t-.68)/.32;
-      aiCtx.save();
-      aiCtx.globalAlpha=1;
-      aiCtx.filter=`saturate(${.5+p*.5}) contrast(${1+p*.08})`;
-      aiCtx.drawImage(aiState.img,0,0,w,h);
-      aiCtx.filter='none';
-      aiCtx.restore();
-      // residual glitch decays
-      applyGlitch(aiCtx,aiState.img,w,h,(1-p)*.008);
-      if(Math.random()<.04*(1-p)) applyTears(aiCtx,aiState.img,w,h,(1-p)*chaos);
-      drawScanBar(aiCtx,w,h,frameT*.3*(1-p));
+    // 白色掃描光條
+    const sy=((noiseT*.4)%1)*h;
+    const g=noiseCtx.createLinearGradient(0,sy-60,0,sy+60);
+    g.addColorStop(0,'rgba(255,255,255,0)');
+    g.addColorStop(.5,'rgba(255,255,255,.18)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    noiseCtx.fillStyle=g; noiseCtx.fillRect(0,sy-60,w,120);
+    // 水平閃光條
+    if(Math.random()<.1){
+      noiseCtx.fillStyle=`rgba(255,255,255,${Math.random()*.22})`;
+      noiseCtx.fillRect(0,Math.random()*h,w,Math.random()*4+1);
     }
+    noiseCv.style.opacity='.9';
 
-    applyScanlines(aiCtx,w,h,.06);
-    applyVignette(aiCtx,w,h);
-    aiCv.style.opacity='.85';
-
-    if(t>=1){
-      aiState.phase='settled';
-      aiState.constructT=1;
-      DOT_EL.className='done';
-      addLog('> RENDER COMPLETE','done');
-      addLog('> OBSERVING…','done');
-      setProgress(1);
-      scheduleNext();
+  } else if(noisePhase==='building'){
+    // 快速消退（1800ms）
+    const alpha=Math.max(0,1-(Date.now()-noiseBuildStart)/1800);
+    if(alpha<=0){ noisePhase='off'; noiseCv.style.opacity='0'; return; }
+    const bsz2=Math.floor(2+alpha*14);
+    const bw2=Math.ceil(w/bsz2), bh2=Math.ceil(h/bsz2);
+    for(let x=0;x<bw2;x++) for(let y=0;y<bh2;y++){
+      const v=Math.random();
+      noiseCtx.fillStyle=`rgba(255,255,255,${v*alpha*.22})`;
+      noiseCtx.fillRect(x*bsz2,y*bsz2,bsz2,bsz2);
     }
-
-  } else if(aiState.phase==='settled'){
-    /* ── Stable but alive: subtle drift + persistent scan ── */
-    aiCtx.save();
-    aiCtx.filter='saturate(.65) contrast(1.06)';
-    // very slow UV drift via tiny canvas transform
-    const drift=Math.sin(frameT*.12)*.003*w;
-    aiCtx.drawImage(aiState.img,drift,0,w,h);
-    aiCtx.filter='none';
-    aiCtx.restore();
-    applyGlitch(aiCtx,aiState.img,w,h,.003*chaos);
-    if(Math.random()<.04) applyTears(aiCtx,aiState.img,w,h,.015*chaos);
-    applyScanlines(aiCtx,w,h,.055);
-    applyVignette(aiCtx,w,h);
-    aiCv.style.opacity='.82';
-
-  } else if(aiState.phase==='fading'){
-    /* ── Dissolve back to noise then out ── */
-    const t=Math.min(1,(Date.now()-aiState.fadeStart)/1800);
-    aiCtx.save();
-    aiCtx.globalAlpha=1-t*.7;
-    aiCtx.filter='saturate(.4)';
-    aiCtx.drawImage(aiState.img,0,0,w,h);
-    aiCtx.filter='none';
-    aiCtx.restore();
-    drawNoise(aiCtx,w,h,t*.6,Math.random()<.4?6:12);
-    applyScanlines(aiCtx,w,h,.08);
-    applyVignette(aiCtx,w,h);
-    aiCv.style.opacity=((1-t)*.85).toFixed(3);
-    if(t>=1){
-      aiState.phase='idle';
-      aiCv.style.opacity='0';
-    }
+    const sy2=((noiseT*.22)%1)*h;
+    const g2=noiseCtx.createLinearGradient(0,sy2-35,0,sy2+35);
+    g2.addColorStop(0,'rgba(255,255,255,0)');
+    g2.addColorStop(.5,`rgba(255,255,255,${alpha*.12})`);
+    g2.addColorStop(1,'rgba(255,255,255,0)');
+    noiseCtx.fillStyle=g2; noiseCtx.fillRect(0,sy2-35,w,70);
+    noiseCv.style.opacity=(alpha*.85).toFixed(3);
   }
 }
 
-/* ═══════════════════════════════════════════════
-   PROMPT BUILDER
-═══════════════════════════════════════════════ */
-const PROMPTS=[
-  ["biometric face scan, cyan phosphorescent neural network portrait, machine vision, dark void, glowing face contours, surveillance art, cinematic",
-   "AI perceiving human presence, data portrait face dissolved in cyan light streams, biometric art"],
-  ["wireframe human portrait, pure white edge lines on black void, algorithmic face recognition, circuit topology of identity, technical art",
-   "machine seeing structural edges of a face, canny detection portrait, dark void background"],
-  ["photographic negative portrait, X-ray face vision, inverted identity, ghost image, noir solarized",
-   "AI seeing inverse reality, negative exposure self-portrait, spectral presence in darkness"],
-  ["bilateral symmetry face portrait, sacred geometry human, Rorschach identity, mirror reflection dark art, symmetrical",
-   "observer observing observer, fractal self portrait, infinite reflection, mandala face"],
-  ["mosaic pixelated face portrait, surveillance pixels, 8bit digital identity, low resolution human, censored mosaic",
-   "AI assembling human from fragments, pixel archaeology, consciousness at minimum resolution, retro digital"],
-  ["chromatic aberration face portrait, RGB channel split, prism eye art, glitch vaporwave identity, spectrum split self",
-   "machine perceiving color dispersion, optical error as revelation, spectrum split portrait"],
+/* ════════════════════════════════
+   STAGE 1 CAPTURE
+════════════════════════════════ */
+function captureStage1(){
+  if(!renderer) return null;
+  try{ return renderer.domElement.toDataURL('image/jpeg',.65); }
+  catch(e){ return null; }
+}
+
+/* ════════════════════════════════
+   PROMPTS
+════════════════════════════════ */
+const STAGE2_PROMPTS=[
+  "deepen into pure neural consciousness art, intensify bioluminescence, glowing circuit face, dark cosmos",
+  "transform edge lines into architectural blueprint of a human soul, technical diagram, dark background, precise white ink",
+  "push this inverted soul into surreal dreamscape, infrared spectral portrait, liminal space between existence and data",
+  "amplify symmetry into sacred geometry mandala portrait, divine bilateral fractal, cosmic face from sacred mathematics",
+  "reconstruct pixelated consciousness into neo-pointillist portrait, luminous particle face, impressionist data art",
+  "intensify spectral split into pure prism art, light refraction human identity, spectrum dispersion portrait",
 ];
-
 function buildPrompt(){
-  const pool=PROMPTS[vs.subMode]||PROMPTS[0];
-  const base=pool[Math.floor(Math.random()*pool.length)];
-  const cw=chaos>.7?'extreme fragmentation distortion,':chaos>.4?'subtle displacement organic,':'crystalline precise minimal,';
-  const ew=entropy>.7?'dissolution entropy chaos,':entropy>.4?'flowing entropic,':'structured ordered,';
-  return `${cw}${ew}${base}, masterpiece 8k, no text no watermark`;
+  const base=STAGE2_PROMPTS[vs.subMode]||STAGE2_PROMPTS[0];
+  const cw=chaos>.7?'extreme chaotic fragmented,':chaos>.4?'organic motion,':'crystalline precise,';
+  const ew=entropy>.7?'maximum entropy dissolution,':entropy>.4?'entropic flow,':'structured ordered,';
+  return `${cw}${ew}${base}, dark background, no text no watermark, masterpiece 8k`;
 }
 
-/* ═══════════════════════════════════════════════
-   GENERATE  (Pollinations.ai — free, no key)
-═══════════════════════════════════════════════ */
-let generating=false;
+/* ════════════════════════════════
+   AI PIPELINE
+════════════════════════════════ */
+const aiImgEl = document.getElementById('ai-img');
+let loopTimer=null;
 
-async function generateAI(){
+async function triggerAI(){
   if(generating) return;
   generating=true;
-  aiState.lastGen=Date.now();
+  if(loopTimer){ clearTimeout(loopTimer); loopTimer=null; }
 
-  const btn=document.getElementById('btn-ai');
-  btn.className='ibtn amber';
-  DOT_EL.className='hot';
-  TERM_EL.classList.add('show');
-  LOG_EL.innerHTML=''; logLines=[];
+  document.getElementById('btn-ai').className='ibtn pulse';
 
-  addLog('> INIT GENERATIVE_PROCESS');
-  addLog('> SAMPLING SCENE STATE…','hot');
-  setProgress(0);
+  // 啟動全畫面白色雜訊
+  noisePhase='loading';
+  await tick(500);
 
-  await delay(400);
+  // 截 Three.js 畫面（含 shader 效果）
+  await new Promise(r=>requestAnimationFrame(r));
+  await new Promise(r=>requestAnimationFrame(r));
+  const stage1Data=captureStage1();
+  await tick(300);
+
+  // 建構 prompt 並發送
   const prompt=buildPrompt();
-  PROMPT_EL.textContent=prompt.length>90?prompt.substring(0,90)+'…':prompt;
-  PROMPT_EL.classList.add('show');
-  addLog('> PROMPT ENCODED ['+prompt.split(',').length+' tokens]');
+  const seed=Math.floor(Math.random()*999999);
+  // flux text-to-image (base64 as URL param exceeds browser limits → use text only)
+  const url=`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`
+    +`?width=768&height=768&nologo=true&seed=${seed}&model=flux`;
 
-  await delay(300);
-  addLog('> DISPATCHING TO MODEL…','hot');
+  let loadedSrc='';
+  await new Promise((resolve,reject)=>{
+    aiImgEl.onload=()=>{ loadedSrc=aiImgEl.src; resolve(); };
+    aiImgEl.onerror=()=>reject(new Error('LOAD_FAIL'));
+    aiImgEl.src=url;
+    setTimeout(()=>reject(new Error('TIMEOUT')),42000);
+  }).catch(async(e)=>{
+    console.warn('AI fail:',e);
+    noisePhase='off'; noiseCv.style.opacity='0';
+    aiImgEl.src='';
+    document.getElementById('btn-ai').className='ibtn';
+    generating=false;
+    loopTimer=setTimeout(triggerAI,10000);
+    throw e;
+  });
 
-  aiState.phase='loading';
-  aiCv.style.opacity='0';
-  // fade in canvas
-  aiCv.style.transition='opacity .5s';
-  await delay(100);
-  aiCv.style.opacity='.8';
+  // 圖像已載入 → 雜訊開始消退，圖像像素化浮現
+  aiImgEl.style.imageRendering='pixelated';
+  aiImgEl.style.filter='saturate(0.1) contrast(1.55) brightness(0.5)';
+  aiImgEl.style.transition='opacity .5s';
+  aiImgEl.style.opacity='0.55';
+  noiseBuildStart=Date.now();
+  noisePhase='building';
+  await tick(400);
 
-  const seed=Math.floor(Math.random()*99999);
-  const url=`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&nologo=true&seed=${seed}&model=flux`;
-
-  addLog('> DIFFUSION RUNNING…','hot');
-
-  try{
-    const img=new Image();
-    img.crossOrigin='anonymous';
-    await new Promise((res,rej)=>{
-      img.onload=res; img.onerror=rej; img.src=url;
-      setTimeout(()=>rej(new Error('timeout')),35000);
-    });
-
-    addLog('> LATENT DECODED ✓');
-    addLog('> CONSTRUCTING VISUAL…','hot');
-    await delay(200);
-
-    aiState.img=img;
-    aiState.phase='constructing';
-    aiState.constructStart=Date.now();
-    aiState.constructT=0;
-
-    btn.className='ibtn white';
-
-  }catch(e){
-    console.warn('gen fail:',e);
-    addLog('> ERROR: CONNECTION LOST','hot');
-    aiState.phase='idle';
-    aiCv.style.transition='opacity 1s';
-    aiCv.style.opacity='0';
-    btn.className='ibtn';
-    DOT_EL.className='';
-    setTimeout(()=>scheduleNext(),6000);
+  // 5 步銳化
+  const steps=[
+    {sat:.18,con:1.42,br:.58,op:.65,dur:380},
+    {sat:.30,con:1.30,br:.70,op:.72,dur:460},
+    {sat:.44,con:1.18,br:.80,op:.78,dur:520},
+    {sat:.58,con:1.09,br:.88,op:.85,dur:600},
+    {sat:.70,con:1.02,br:.96,op:.95,dur:700},
+  ];
+  for(const s of steps){
+    aiImgEl.style.imageRendering=s.sat>.35?'auto':'pixelated';
+    aiImgEl.style.transition=`filter ${s.dur}ms ease, opacity ${s.dur}ms ease`;
+    aiImgEl.style.filter=`saturate(${s.sat}) contrast(${s.con}) brightness(${s.br})`;
+    aiImgEl.style.opacity=s.op.toString();
+    await tick(s.dur);
   }
+  aiImgEl.style.imageRendering='auto';
+
+  document.getElementById('btn-ai').className='ibtn on';
   generating=false;
+
+  // 記錄歷史（loadedSrc is the actual loaded URL）
+  const recS2 = loadedSrc || aiImgEl.src || '';
+  console.log('addRecord s2:', recS2.substring(0,80));
+  addRecord(stage1Data||'', recS2, vs.subMode, chaos, entropy);
+
+  // 自動循環
+  const hold=Math.round(20000-entropy*8000);
+  loopTimer=setTimeout(async()=>{
+    aiImgEl.style.transition='opacity 1.8s ease, filter 1.8s ease';
+    aiImgEl.style.opacity='0';
+    aiImgEl.style.filter='saturate(0) brightness(.2)';
+    await tick(2000);
+    aiImgEl.src='';
+    document.getElementById('btn-ai').className='ibtn';
+    await tick(500);
+    triggerAI();
+  }, hold);
 }
 
-function scheduleNext(){
-  if(aiState.loopTimer) clearTimeout(aiState.loopTimer);
-  const interval=Math.round(22000-entropy*9000); // 22s→13s
-  addLog(`> NEXT OBSERVATION IN ${(interval/1000).toFixed(0)}s`);
+function tick(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
-  aiState.loopTimer=setTimeout(()=>{
-    aiState.phase='fading';
-    aiState.fadeStart=Date.now();
-    addLog('> DISSOLVING…');
-    DOT_EL.className='hot';
-    // wait for fade then gen
-    setTimeout(()=>generateAI(),1900);
-  },interval);
-}
-
-function delay(ms){return new Promise(r=>setTimeout(r,ms));}
-
-/* ═══════════════════════════════════════════════
+/* ════════════════════════════════
    FIREBASE
-═══════════════════════════════════════════════ */
+════════════════════════════════ */
 let auth=null;
 try{
   firebase.initializeApp(FIREBASE_CONFIG);
   auth=firebase.auth();
   auth.onAuthStateChanged(u=>{
     const b=document.getElementById('btn-g'),t=document.getElementById('uid-tag');
-    if(u&&!u.isAnonymous){b.classList.add('blue');t.style.display='block';t.textContent='數據標記: '+u.uid.substring(0,14).toUpperCase();}
-    else{b.classList.remove('blue');t.style.display='none';}
+    if(u&&!u.isAnonymous){b.className='ibtn on';t.style.display='block';t.textContent=u.uid.substring(0,12).toUpperCase();}
+    else{b.className='ibtn';t.style.display='none';}
   });
-}catch(e){console.warn('Firebase skip',e);}
+}catch(e){}
 document.getElementById('btn-g').addEventListener('click',async()=>{
   if(!auth)return;try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());}catch(e){}
 });
 
-/* ═══════════════════════════════════════════════
+/* ════════════════════════════════
    EEG
-═══════════════════════════════════════════════ */
+════════════════════════════════ */
 const MS=0xfe8d,MC='273e0001-4c4d-454d-96be-f03bac821358',ME='273e0004-4c4d-454d-96be-f03bac821358';
 let mg=null,eb=[];
 function fft(re,im){
@@ -606,18 +505,18 @@ function procEEG(v){
   eb.push(...dec);
   if(eb.length>256){
     const sig=eb.slice(-256),re=[...sig],im=new Array(256).fill(0);
-    fft(re,im);
-    let aP=0,bP=0;
+    fft(re,im);let aP=0,bP=0;
     const b=hz=>Math.round(hz*256/256);
     for(let i=b(8);i<b(13);i++)aP+=re[i]*re[i]+im[i]*im[i];
     for(let i=b(13);i<b(30);i++)bP+=re[i]*re[i]+im[i]*im[i];
     const tot=aP+bP+1e-6,al=aP/tot,be=bP/tot;
     entropy=.1+al*.9;chaos=.1+be*.9;
-    setNeedle('nc',chaos);setNeedle('ne',entropy);
-    document.getElementById('eeg').innerHTML=
-      '<div style="color:#4ade80;margin-bottom:2px;">&#x2B24; MUSE LIVE</div>'+
-      '<div>&#945;: '+(al*100).toFixed(0)+'%</div>'+
-      '<div>&#946;: '+(be*100).toFixed(0)+'%</div>';
+    document.getElementById('nc').style.transform=`rotate(${chaos*280-140}deg)`;
+    document.getElementById('ne').style.transform=`rotate(${entropy*280-140}deg)`;
+    document.getElementById('eeg-hud').innerHTML=
+      '<div style="color:rgba(255,255,255,.55);margin-bottom:2px;">&#x2B24; MUSE</div>'+
+      '<div>&#945; '+(al*100).toFixed(0)+'%</div>'+
+      '<div>&#946; '+(be*100).toFixed(0)+'%</div>';
     eb=eb.slice(-256);
   }
 }
@@ -626,7 +525,7 @@ document.getElementById('btn-e').addEventListener('click',async()=>{
   if(eegActive){
     if(mg)mg.disconnect();eegActive=false;
     document.getElementById('btn-e').className='ibtn';
-    document.getElementById('eeg').textContent='— 未連線';
+    document.getElementById('eeg-hud').textContent='— 未連線';
     cw.classList.remove('locked');ew.classList.remove('locked');return;
   }
   try{
@@ -637,77 +536,65 @@ document.getElementById('btn-e').addEventListener('click',async()=>{
     ch.addEventListener('characteristicvaluechanged',e=>procEEG(e.target.value));
     const ctrl=await svc.getCharacteristic(MC),enc=new TextEncoder();
     await ctrl.writeValue(enc.encode('v1\n'));await ctrl.writeValue(enc.encode('p21\n'));await ctrl.writeValue(enc.encode('d\n'));
-    eegActive=true;document.getElementById('btn-e').className='ibtn green';
+    eegActive=true;document.getElementById('btn-e').className='ibtn slow';
     cw.classList.add('locked');ew.classList.add('locked');
     dev.addEventListener('gattserverdisconnected',()=>{
       eegActive=false;document.getElementById('btn-e').className='ibtn';
       cw.classList.remove('locked');ew.classList.remove('locked');
     });
-  }catch(e){console.error('EEG fail',e);}
+  }catch(e){console.error(e);}
 });
 
-/* ── Manual AI trigger ─────────────────────── */
 document.getElementById('btn-ai').addEventListener('click',()=>{
-  if(aiState.loopTimer){clearTimeout(aiState.loopTimer);aiState.loopTimer=null;}
-  if(aiState.phase==='settled'||aiState.phase==='loading'||aiState.phase==='constructing'){
-    aiState.phase='fading';
-    aiState.fadeStart=Date.now();
-    setTimeout(()=>generateAI(),1900);
-  } else {
-    generateAI();
-  }
+  if(loopTimer){clearTimeout(loopTimer);loopTimer=null;}
+  generating=false;
+  aiImgEl.style.transition='opacity .4s';aiImgEl.style.opacity='0';
+  setTimeout(triggerAI,500);
 });
 
-/* ═══════════════════════════════════════════════
+/* ════════════════════════════════
    KNOBS
-═══════════════════════════════════════════════ */
-function setNeedle(id,v){const el=document.getElementById(id);if(el)el.style.transform='rotate('+(v*280-140)+'deg)';}
+════════════════════════════════ */
 function mkKnob(kid,nid,get,set){
   const k=document.getElementById(kid);let drag=false,ly=0;
-  const s=y=>{if(eegActive)return;drag=true;ly=y;k.classList.add('drag');};
-  const m=y=>{if(!drag||eegActive)return;const v=Math.max(0,Math.min(1,get()+(ly-y)*.008));set(v);setNeedle(nid,v);ly=y;};
-  const e=()=>{drag=false;k.classList.remove('drag');};
-  k.addEventListener('mousedown',ev=>{ev.stopPropagation();s(ev.clientY);});
-  window.addEventListener('mousemove',ev=>m(ev.clientY));
-  window.addEventListener('mouseup',e);
-  k.addEventListener('touchstart',ev=>{ev.stopPropagation();s(ev.touches[0].clientY);},{passive:false});
-  window.addEventListener('touchmove',ev=>{if(drag){ev.preventDefault();m(ev.touches[0].clientY);}},{passive:false});
-  window.addEventListener('touchend',e);
+  k.addEventListener('mousedown',e=>{e.stopPropagation();drag=true;ly=e.clientY;k.classList.add('drag');});
+  window.addEventListener('mousemove',e=>{if(!drag)return;const v=Math.max(0,Math.min(1,get()+(ly-e.clientY)*.008));set(v);document.getElementById(nid).style.transform=`rotate(${v*280-140}deg)`;ly=e.clientY;});
+  window.addEventListener('mouseup',()=>{drag=false;k.classList.remove('drag');});
+  k.addEventListener('touchstart',e=>{e.stopPropagation();drag=true;ly=e.touches[0].clientY;k.classList.add('drag');},{passive:false});
+  window.addEventListener('touchmove',e=>{if(!drag)return;e.preventDefault();const v=Math.max(0,Math.min(1,get()+(ly-e.touches[0].clientY)*.008));set(v);document.getElementById(nid).style.transform=`rotate(${v*280-140}deg)`;ly=e.touches[0].clientY;},{passive:false});
+  window.addEventListener('touchend',()=>{drag=false;k.classList.remove('drag');});
 }
 mkKnob('kc','nc',()=>chaos,v=>chaos=v);
 mkKnob('ke','ne',()=>entropy,v=>entropy=v);
 
-/* ═══════════════════════════════════════════════
+/* ════════════════════════════════
    THREE.JS
-═══════════════════════════════════════════════ */
+════════════════════════════════ */
 async function initThree(){
   const video=document.getElementById('video');
   try{
     const s=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:"user"}});
     video.srcObject=s;await video.play();
-  }catch(e){console.error('cam fail',e);}
+  }catch(e){console.warn('cam',e);}
 
   scene=new THREE.Scene();
   camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,1000);
   camera.position.z=110;
-  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  // preserveDrawingBuffer 讓截圖可用
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});
   renderer.setSize(innerWidth,innerHeight);
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   document.getElementById('container').appendChild(renderer.domElement);
   videoTex=new THREE.VideoTexture(video);
 
   shaderMat=new THREE.ShaderMaterial({
-    uniforms:{
-      tDiffuse:{value:videoTex},phasePair:{value:1},subMode:{value:0},
-      time:{value:0},chaos:{value:.5},transition:{value:1.0}
-    },
+    uniforms:{tDiffuse:{value:videoTex},subMode:{value:0},time:{value:0},chaos:{value:.5},transition:{value:1.0}},
     vertexShader:`
       varying vec2 vUv;uniform float time,chaos;
       void main(){
-        vUv=uv;vec3 pos=position;
-        float wave=sin(time*(1.1+chaos*1.5)+(pos.x*.06+pos.y*.06))*(chaos*20.0);
-        pos.z+=wave;
-        gl_Position=projectionMatrix*modelViewMatrix*vec4(pos,1.0);
+        vUv=uv;vec3 p=position;
+        p.z+=sin(time*1.1+(p.x+p.y)*.06)*(4.5+chaos*16.);
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
       }`,
     fragmentShader:`
       uniform sampler2D tDiffuse;uniform int subMode;
@@ -716,85 +603,77 @@ async function initThree(){
         vec2 uv=vUv;
         if(chaos>.1){float d=distance(uv,vec2(.5));uv.x+=sin(d*12.-time*1.5)*.025*chaos;uv.y+=cos(d*12.-time*1.5)*.025*chaos;}
         if(subMode==3)uv.x=abs(uv.x-.5)+.25;
-        if(subMode==4){float sz=60.-(chaos*50.);uv=floor(uv*sz)/sz;}
+        if(subMode==4){float sz=65.-chaos*50.;uv=floor(uv*sz)/sz;}
         vec4 fc;
         if(subMode==5){float sh=.03*chaos;fc=vec4(texture2D(tDiffuse,uv+vec2(sh,0)).r,texture2D(tDiffuse,uv).g,texture2D(tDiffuse,uv-vec2(sh,0)).b,1.);}
         else fc=texture2D(tDiffuse,uv);
-        float luma=dot(fc.rgb,vec3(.299,.587,.114));
-        if(subMode==0){vec3 c=mix(vec3(.05),vec3(.7,.85,1.),luma);if(luma>.55)c=mix(c,vec3(1.),(luma-.55)*2.5);fc=vec4(c,1.);}
-        else if(subMode==1){fc=vec4(vec3(fwidth(luma)*(18.+chaos*25.)),1.);}
-        else if(subMode==2){fc.rgb=vec3(1.)-fc.rgb;fc.rgb*=vec3(.9,.95,1.);}
+        float l=dot(fc.rgb,vec3(.299,.587,.114));
+        if(subMode==0){fc.rgb=mix(vec3(.05),vec3(.7,.85,1.),l);if(l>.55)fc.rgb=mix(fc.rgb,vec3(1.),(l-.55)*2.5);}
+        else if(subMode==1){fc=vec4(vec3(fwidth(l)*(18.+chaos*25.)),1.);}
+        else if(subMode==2){fc.rgb=(vec3(1.)-fc.rgb)*vec3(.9,.95,1.);}
         gl_FragColor=fc*transition;
       }`,
     transparent:true
   });
 
-  mesh=new THREE.Mesh(new THREE.PlaneBufferGeometry(235,175,64,64),shaderMat);
+  mesh=new THREE.Mesh(new THREE.PlaneBufferGeometry(235,175,128,128),shaderMat);
   scene.add(mesh);
 
   particles=new THREE.Group();
-  const cols=15,rows=12,pw=230/cols,ph=170/rows;
   const geos=[
-    new THREE.TorusKnotBufferGeometry(pw/3.6,.1,32,8),
-    new THREE.OctahedronBufferGeometry(pw/2.1,1),
-    new THREE.CylinderBufferGeometry(pw/4.5,pw/4.5,ph*.8,8,1),
-    new THREE.SphereBufferGeometry(pw/2.2,16,12),
+    new THREE.TorusKnotBufferGeometry(5,.1,32,8),
+    new THREE.OctahedronBufferGeometry(8,1),
+    new THREE.SphereBufferGeometry(8,16,12),
+    new THREE.CylinderBufferGeometry(4,4,12,8,1),
   ];
   const scales=[1.8,1.3,1.0,.5];
-  for(let i=0;i<cols;i++) for(let j=0;j<rows;j++){
-    const p=new THREE.Mesh(geos[Math.floor(Math.random()*geos.length)],shaderMat);
-    const sc=scales[Math.floor(Math.random()*scales.length)];
-    p.scale.set(sc,sc,sc);
-    p.position.set(i*pw-115+pw/2,j*ph-85+ph/2,(Math.random()-.5)*20);
+  for(let i=0;i<80;i++){
+    const p=new THREE.Mesh(geos[i%geos.length],shaderMat);
+    const s=scales[Math.floor(Math.random()*scales.length)];
+    p.scale.set(s,s,s);
+    p.position.set((Math.random()-.5)*220,(Math.random()-.5)*160,(Math.random()-.5)*20);
     p.userData={origin:p.position.clone(),v:new THREE.Vector3(),noise:Math.random()*100};
     particles.add(p);
   }
   scene.add(particles);
   liquidWeb=new THREE.LineSegments(new THREE.BufferGeometry(),
-    new THREE.LineBasicMaterial({color:0x444444,transparent:true,opacity:.08}));
+    new THREE.LineBasicMaterial({color:0x555555,transparent:true,opacity:.07}));
   scene.add(liquidWeb);
 
-  // Warmup: run base scene for 5s, then first AI gen
-  addLog('> BASE SCENE INITIALIZED');
-  addLog('> WARMING UP…');
-  TERM_EL.classList.add('show');
-  setTimeout(()=>generateAI(),5000);
-
+  setTimeout(triggerAI,6000);
   animate();
 }
 
-/* ═══════════════════════════════════════════════
+/* ════════════════════════════════
    MOTION TRACKING
-═══════════════════════════════════════════════ */
-const elCur=document.getElementById('cur'),elCrt=document.getElementById('crt');
+════════════════════════════════ */
 let tf=0;
-function trackMotion(){
+function updateTracking(){
   tf++;if(tf%8!==0||vs.interacting)return;
   const v=document.getElementById('video'),c=document.getElementById('mc');
   if(!v||v.readyState<2)return;
   const ctx=c.getContext('2d');
   ctx.drawImage(v,0,0,c.width,c.height);
-  const cur=ctx.getImageData(0,0,c.width,c.height);
+  const curr=ctx.getImageData(0,0,c.width,c.height);
   if(prevFrame){
     let tx=0,ty=0,cnt=0;
-    for(let i=0;i<cur.data.length;i+=4){
-      const d=(Math.abs(cur.data[i]-prevFrame.data[i])+Math.abs(cur.data[i+1]-prevFrame.data[i+1])+Math.abs(cur.data[i+2]-prevFrame.data[i+2]))/3;
+    for(let i=0;i<curr.data.length;i+=4){
+      const d=(Math.abs(curr.data[i]-prevFrame.data[i])+Math.abs(curr.data[i+1]-prevFrame.data[i+1])+Math.abs(curr.data[i+2]-prevFrame.data[i+2]))/3;
       if(d>26){const idx=i/4;tx+=idx%c.width;ty+=Math.floor(idx/c.width);cnt++;}
     }
     if(cnt>25){
-      let nx=1-(tx/cnt/c.width);
-      nx=Math.max(0,Math.min(1,(nx-.05)/.9));
+      let nx=1-(tx/cnt/c.width);nx=Math.max(0,Math.min(1,(nx-.05)/.9));
       vs.tx=nx*innerWidth;vs.ty=(ty/cnt/c.height)*innerHeight;
-      elCur.classList.add('on');
-    }else elCur.classList.remove('on');
+      document.getElementById('cur').classList.add('on');
+    }else document.getElementById('cur').classList.remove('on');
   }
-  if(!prevFrame)prevFrame=new ImageData(cur.width,cur.height);
-  prevFrame.data.set(cur.data);
+  if(!prevFrame)prevFrame=new ImageData(curr.width,curr.height);
+  prevFrame.data.set(curr.data);
 }
 
-/* ═══════════════════════════════════════════════
+/* ════════════════════════════════
    MAIN LOOP
-═══════════════════════════════════════════════ */
+════════════════════════════════ */
 function animate(){
   requestAnimationFrame(animate);
   const t=Date.now()*.001;
@@ -805,75 +684,67 @@ function animate(){
   vs.trans+=(vs.tTrans-vs.trans)*.12;
   shaderMat.uniforms.transition.value=vs.trans;
 
-  // ← AI canvas render every frame
-  if(aiState.phase!=='idle') renderAICanvas();
+  if(noisePhase!=='off') drawNoise();
+  updateTracking();
 
-  trackMotion();
-  elCrt.style.opacity=(0.7+Math.sin(t*50)*.02*entropy).toString();
-  vs.cx+=(vs.tx-vs.cx)*.22;vs.cy+=(vs.ty-vs.cy)*.22;
-  elCur.style.left=vs.cx+'px';elCur.style.top=vs.cy+'px';
+  vs.cx+=(vs.tx-vs.cx)*.15;vs.cy+=(vs.ty-vs.cy)*.15;
+  document.getElementById('cur').style.left=vs.cx+'px';
+  document.getElementById('cur').style.top=vs.cy+'px';
+
+  const wm=new THREE.Vector3(((vs.cx/innerWidth)*2-1)*115,-((vs.cy/innerHeight)*2-1)*85,10);
+  if(mesh){
+    const arr=mesh.geometry.attributes.position.array;
+    for(let i=0;i<arr.length;i+=3){
+      const dist=Math.sqrt((arr[i]-wm.x)**2+(arr[i+1]-wm.y)**2);
+      let z=Math.sin(t*1.2+(arr[i]+arr[i+1])*.04)*(4.5+chaos*10);
+      if(dist<100)z+=(100-dist)*(.6+chaos*2.5);
+      arr[i+2]=z;
+    }
+    mesh.geometry.attributes.position.needsUpdate=true;
+  }
+  const pts=[];
+  particles.children.forEach(p=>{
+    const ud=p.userData,tg=ud.origin.clone();
+    tg.x+=Math.sin(t*(.35+chaos*1.3)+ud.noise)*(42*chaos);
+    tg.y+=Math.cos(t*.85*(.35+chaos*1.3)+ud.noise)*(42*chaos);
+    const dist=p.position.distanceTo(wm);
+    if(dist<88){
+      ud.v.add(new THREE.Vector3().subVectors(p.position,wm).normalize().multiplyScalar((1-dist/88)*(3.5+chaos*9)));
+      if(Math.random()>.85)pts.push(p.position.x,p.position.y,p.position.z,wm.x,wm.y,wm.z);
+    }
+    ud.v.add(new THREE.Vector3().subVectors(tg,p.position).multiplyScalar(.025));
+    ud.v.multiplyScalar(.86-chaos*.12);
+    p.position.add(ud.v);p.rotation.x+=ud.v.length()*.07;
+  });
+  liquidWeb.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  liquidWeb.geometry.attributes.position.needsUpdate=true;
 
   const ct=8000/(.35+entropy*1.8);
   if(Date.now()-vs.lastSwitch>ct){
     vs.tTrans=.1;
     setTimeout(()=>{
       vs.modeCount=(vs.modeCount+1)%6;vs.subMode=vs.modeCount;
-      vs.phase=Math.floor(Math.random()*3)+1;
-      shaderMat.uniforms.subMode.value=vs.subMode;
-      shaderMat.uniforms.phasePair.value=vs.phase;
-      mesh.visible=(vs.phase===1||vs.phase===3);
-      particles.visible=(vs.phase===2||vs.phase===3);
-      vs.tTrans=1.0;
+      shaderMat.uniforms.subMode.value=vs.subMode;vs.tTrans=1.0;
     },400);
     vs.lastSwitch=Date.now();
-  }
-
-  const wm=new THREE.Vector3(((vs.cx/innerWidth)*2-1)*115,-((vs.cy/innerHeight)*2-1)*85,10);
-  if(mesh.visible){
-    const arr=mesh.geometry.attributes.position.array;
-    for(let i=0;i<arr.length;i+=3){
-      const dist=Math.sqrt((arr[i]-wm.x)**2+(arr[i+1]-wm.y)**2);
-      const j=(Math.random()-.5)*entropy*2;
-      let z=Math.sin(t*1.2+(arr[i]+arr[i+1])*.04)*(4.5+chaos*8)+j;
-      if(dist<100)z+=(100-dist)*(.6+chaos*1.8);
-      arr[i+2]=z;
-    }
-    mesh.geometry.attributes.position.needsUpdate=true;
-  }
-  if(particles.visible){
-    const pts=[];
-    particles.children.forEach(p=>{
-      const ud=p.userData,tg=ud.origin.clone();
-      tg.x+=Math.sin(t*(.35+chaos*1.3)+ud.noise)*(42*chaos);
-      tg.y+=Math.cos(t*.85*(.35+chaos*1.3)+ud.noise)*(42*chaos);
-      const dist=p.position.distanceTo(wm);
-      if(dist<88){
-        ud.v.add(new THREE.Vector3().subVectors(p.position,wm).normalize().multiplyScalar((1-dist/88)*(3.5+chaos*9)));
-        if(Math.random()>.85)pts.push(p.position.x,p.position.y,p.position.z,wm.x,wm.y,wm.z);
-      }
-      ud.v.add(new THREE.Vector3().subVectors(tg,p.position).multiplyScalar(.025));
-      ud.v.multiplyScalar(.86-chaos*.12);
-      p.position.add(ud.v);p.rotation.x+=ud.v.length()*.07;
-    });
-    liquidWeb.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
-    liquidWeb.geometry.attributes.position.needsUpdate=true;
   }
   renderer.render(scene,camera);
 }
 
 window.addEventListener('resize',()=>{
   if(camera&&renderer){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}
+  resizeNoise();
 });
-function onT(x,y){vs.interacting=true;vs.tx=x;vs.ty=y;}
+function onP(x,y){vs.interacting=true;vs.tx=x;vs.ty=y;}
 const cont=document.getElementById('container');
-cont.addEventListener('mousedown',e=>onT(e.clientX,e.clientY));
-cont.addEventListener('mousemove',e=>{if(e.buttons>0)onT(e.clientX,e.clientY);});
+cont.addEventListener('mousedown',e=>onP(e.clientX,e.clientY));
+cont.addEventListener('mousemove',e=>{if(e.buttons>0)onP(e.clientX,e.clientY);});
 cont.addEventListener('mouseup',()=>vs.interacting=false);
-cont.addEventListener('touchstart',e=>onT(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
-cont.addEventListener('touchmove', e=>onT(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+cont.addEventListener('touchstart',e=>onP(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+cont.addEventListener('touchmove', e=>onP(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
 cont.addEventListener('touchend',()=>vs.interacting=false);
 
-initThree();
+window.onload=initThree;
 </script>
 </body>
 </html>
