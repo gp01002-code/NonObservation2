@@ -311,7 +311,8 @@ async function initThree(){
     transparent:true
   });
 
-  mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(235,175,128,128), shaderMat);
+  // 64×64 頂點對手機足夠，比 128×128 少 75% JS 計算量
+  mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(235,175,64,64), shaderMat);
   scene.add(mesh);
 
   particles = new THREE.Group();
@@ -342,7 +343,15 @@ async function initThree(){
   animate();
 }
 
+// ── DOM 快取（避免每幀重複查詢）─────────────────────────────
+const elCursor = document.getElementById('cursor-el');
+const elCrt    = document.getElementById('crt-overlay');
+let trackFrame = 0;  // 動態偵測節流計數器
+
 function updateTracking(){
+  // 每 8 幀才跑一次 getImageData，手機不過熱
+  trackFrame++;
+  if(trackFrame % 8 !== 0) return;
   if(state.isInteracting) return;
   const video=document.getElementById('video'), canvas=document.getElementById('motion-canvas');
   if(!video||video.readyState<2) return;
@@ -360,8 +369,8 @@ function updateTracking(){
       nx=Math.max(0,Math.min(1,(nx-0.05)/0.9));
       state.targetX=nx*window.innerWidth;
       state.targetY=(ty/count/canvas.height)*window.innerHeight;
-      document.getElementById('cursor-el').classList.add('detecting');
-    } else { document.getElementById('cursor-el').classList.remove('detecting'); }
+      elCursor.classList.add('detecting');
+    } else { elCursor.classList.remove('detecting'); }
   }
   if(!prevFrame) prevFrame=new ImageData(curr.width,curr.height);
   prevFrame.data.set(curr.data);
@@ -379,13 +388,12 @@ function animate(){
 
   updateTracking();
 
-  const crt=document.getElementById('crt-overlay');
-  if(crt) crt.style.opacity=(0.7+Math.sin(time*50)*0.02*entropy).toString();
+  if(elCrt) elCrt.style.opacity=(0.7+Math.sin(time*50)*0.02*entropy).toString();
 
   state.currentX+=(state.targetX-state.currentX)*0.22;
   state.currentY+=(state.targetY-state.currentY)*0.22;
-  document.getElementById('cursor-el').style.left=state.currentX+'px';
-  document.getElementById('cursor-el').style.top=state.currentY+'px';
+  elCursor.style.left=state.currentX+'px';
+  elCursor.style.top=state.currentY+'px';
 
   const cycleTime=8000/(0.35+entropy*1.8);
   if(Date.now()-state.lastSwitch>cycleTime){
