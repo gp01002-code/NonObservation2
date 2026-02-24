@@ -3,150 +3,71 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SELF_OBSERVER :: v14.8.6 ENTROPY_FIX</title>
-
-  <!-- 核心庫載入 -->
+  <title>SELF_OBSERVER :: v14.8.7</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-    
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    body { 
-      background: #000; 
-      overflow: hidden; 
-      font-family: 'Share Tech Mono', monospace; 
-      color: #fff; 
-      user-select: none;
-      touch-action: none; 
-    }
-
-    /* CRT 濾鏡層 */
+    body { background: #000; overflow: hidden; font-family: 'Share Tech Mono', monospace; color: #fff; user-select: none; touch-action: none; }
     #crt-overlay {
-      pointer-events: none;
-      position: fixed;
-      inset: 0;
-      z-index: 40;
-      background:
-        linear-gradient(rgba(18,16,16,0) 50%, rgba(255,255,255,0.01) 50%),
-        linear-gradient(90deg, rgba(255,255,255,0.005), rgba(255,255,255,0.005));
-      background-size: 100% 3px, 3px 100%;
-      opacity: 0.8;
+      pointer-events: none; position: fixed; inset: 0; z-index: 40;
+      background: linear-gradient(rgba(18,16,16,0) 50%, rgba(255,255,255,0.01) 50%),
+                  linear-gradient(90deg, rgba(255,255,255,0.005), rgba(255,255,255,0.005));
+      background-size: 100% 3px, 3px 100%; opacity: 0.8;
     }
-
-    /* 感應游標 */
     #cursor-el {
-      position: fixed;
-      width: 48px; height: 48px;
-      border: 1px solid #ef4444;
-      border-radius: 50%;
-      z-index: 100;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      mix-blend-mode: screen;
-      transition: width .3s, height .3s, border-color .3s;
+      position: fixed; width: 48px; height: 48px; border: 1px solid #ef4444; border-radius: 50%;
+      z-index: 100; pointer-events: none; transform: translate(-50%, -50%);
+      mix-blend-mode: screen; transition: width .3s, height .3s, border-color .3s;
     }
-    #cursor-el.detecting {
-      width: 65px; height: 65px;
-      border-width: 3px;
-      border-color: #fff;
-      box-shadow: 0 0 25px rgba(255,49,49,0.5);
-    }
-
-    /* 控制介面 */
-    #controls {
-      position: absolute;
-      right: 40px;
-      bottom: 40px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 30px;
-      z-index: 250;
-      pointer-events: auto; /* 確保父容器可接收事件 */
-    }
-
-    .knob-wrap { 
-      display: flex; 
-      flex-direction: column; 
-      align-items: center; 
-      gap: 12px; 
-      transition: opacity 0.5s ease;
-    }
+    #cursor-el.detecting { width: 65px; height: 65px; border-width: 3px; border-color: #fff; box-shadow: 0 0 25px rgba(255,49,49,0.5); }
+    #controls { position: absolute; right: 40px; bottom: 40px; display: flex; flex-direction: column; align-items: flex-end; gap: 30px; z-index: 250; pointer-events: auto; }
+    .knob-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; transition: opacity 0.5s ease; }
     .knob-wrap.locked { opacity: 0.25; pointer-events: none; }
-
     .knob-label { font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: .15em; text-transform: uppercase; }
-    
     .knob {
-      width: 64px; height: 64px;
-      border-radius: 50%;
-      border: 1px solid rgba(255,255,255,0.15);
-      display: flex; align-items: center; justify-content: center;
-      position: relative;
+      width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15);
+      display: flex; align-items: center; justify-content: center; position: relative;
       background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-      cursor: ns-resize;
-      transition: border-color .3s, transform .3s, box-shadow 0.3s;
+      cursor: ns-resize; transition: border-color .3s, transform .3s, box-shadow 0.3s;
     }
     .knob:hover { border-color: rgba(255,255,255,0.4); }
-    .knob.dragging { 
-      border-color: rgba(255,255,255,0.8); 
-      transform: scale(1.08);
-      box-shadow: 0 0 20px rgba(255,255,255,0.1);
-    }
-    
+    .knob.dragging { border-color: rgba(255,255,255,0.8); transform: scale(1.08); box-shadow: 0 0 20px rgba(255,255,255,0.1); }
     .knob-needle {
-      position: absolute;
-      width: 2px; height: 42%;
-      background: rgba(255,255,255,0.9);
-      box-shadow: 0 0 10px rgba(255,255,255,0.6);
-      transform-origin: bottom center;
-      bottom: 50%; left: calc(50% - 1px);
-      pointer-events: none; /* 指針不遮擋事件 */
+      position: absolute; width: 2px; height: 42%; background: rgba(255,255,255,0.9);
+      box-shadow: 0 0 10px rgba(255,255,255,0.6); transform-origin: bottom center;
+      bottom: 50%; left: calc(50% - 1px); pointer-events: none;
     }
-
     .indicator-btn {
-      width: 14px; height: 14px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.15);
-      cursor: pointer;
-      transition: background .7s, box-shadow .7s;
+      width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.15); cursor: pointer; transition: background .7s, box-shadow .7s;
     }
     .indicator-btn.active-blue { background: #60a5fa; box-shadow: 0 0 15px rgba(96,165,250,0.8); border-color: transparent; }
     .indicator-btn.active-green { background: #4ade80; box-shadow: 0 0 15px rgba(74,222,128,0.8); border-color: transparent; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-
-    #eeg-hud {
-      position: absolute; left: 24px; bottom: 110px; z-index: 50;
-      font-size: 10px; line-height: 1.8; color: rgba(255,255,255,0.25); pointer-events: none;
-    }
+    #eeg-hud { position: absolute; left: 24px; bottom: 110px; z-index: 50; font-size: 10px; line-height: 1.8; color: rgba(255,255,255,0.25); pointer-events: none; }
   </style>
 </head>
 <body>
 
 <script>
-  // Firebase 設定
-  const FIREBASE_CONFIG = typeof __firebase_config !== 'undefined' 
-    ? JSON.parse(__firebase_config) 
+  const FIREBASE_CONFIG = typeof __firebase_config !== 'undefined'
+    ? JSON.parse(__firebase_config)
     : { apiKey: "", authDomain: "", projectId: "", storageBucket: "", messagingSenderId: "", appId: "" };
-  
-  const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"; 
+  const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
 </script>
 
 <div id="crt-overlay"></div>
 <div id="cursor-el"></div>
-
 <div id="container" style="width:100vw;height:100vh;cursor:none;position:relative;"></div>
-
 <video id="video" style="display:none;" playsinline muted autoplay></video>
-<canvas id="motion-canvas" width="100" height="75" style="position:absolute;bottom:20px;left:20px;opacity:.08;border:1px solid rgba(255,255,255,.05);z-index:50;pointer-events:none;"></canvas>
+<canvas id="motion-canvas" width="100" height="75"
+  style="position:absolute;bottom:20px;left:20px;opacity:.08;border:1px solid rgba(255,255,255,.05);z-index:50;pointer-events:none;"></canvas>
 
-<!-- 互動介面 -->
 <div id="controls">
   <div style="display:flex;gap:24px;margin-bottom:8px;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
@@ -158,30 +79,22 @@
       <button id="btn-eeg" class="indicator-btn" title="連結 Muse 腦波儀"></button>
     </div>
   </div>
-
   <div style="display:flex;gap:40px;">
     <div class="knob-wrap" id="wrap-chaos">
       <span class="knob-label">混亂_模組</span>
-      <div class="knob" id="knob-chaos">
-        <div class="knob-needle" id="needle-chaos"></div>
-      </div>
+      <div class="knob" id="knob-chaos"><div class="knob-needle" id="needle-chaos"></div></div>
     </div>
     <div class="knob-wrap" id="wrap-entropy">
       <span class="knob-label">熵增_模組</span>
-      <div class="knob" id="knob-entropy">
-        <div class="knob-needle" id="needle-entropy"></div>
-      </div>
+      <div class="knob" id="knob-entropy"><div class="knob-needle" id="needle-entropy"></div></div>
     </div>
   </div>
 </div>
 
-<div id="uid-tag" style="position:absolute; top:24px; right:32px; font-size:9px; color:rgba(96,165,250,0.5); letter-spacing:.2em; display:none;"></div>
+<div id="uid-tag" style="position:absolute;top:24px;right:32px;font-size:9px;color:rgba(96,165,250,0.5);letter-spacing:.2em;display:none;"></div>
 <div id="eeg-hud">— 未連線</div>
 
 <script>
-// ══════════════════════════════════════════════════════════════
-//  系統核心狀態
-// ══════════════════════════════════════════════════════════════
 let chaos = 0.5, entropy = 0.4;
 let eegActive = false;
 let scene, camera, renderer, shaderMat, mesh, particles, liquidWeb, videoTexture;
@@ -194,38 +107,35 @@ const state = {
   isInteracting: false, subMode: 0, modeCounter: 0, phasePair: 1,
 };
 
-// ══════════════════════════════════════════════════════════════
-//  Firebase API
-// ══════════════════════════════════════════════════════════════
-firebase.initializeApp(FIREBASE_CONFIG);
-const auth = firebase.auth();
-
-auth.onAuthStateChanged(user => {
-  const btn = document.getElementById('btn-google');
-  const tag = document.getElementById('uid-tag');
-  if (user && !user.isAnonymous) {
-    btn.classList.add('active-blue');
-    tag.style.display = 'block';
-    tag.textContent = '數據持續標記: ' + user.uid.substring(0,14).toUpperCase();
-  } else {
-    btn.classList.remove('active-blue');
-    tag.style.display = 'none';
-  }
-});
+// ── Firebase（try/catch：未填設定時不阻斷畫面）──────────────
+let auth = null;
+try {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  auth = firebase.auth();
+  auth.onAuthStateChanged(user => {
+    const btn = document.getElementById('btn-google');
+    const tag = document.getElementById('uid-tag');
+    if (user && !user.isAnonymous) {
+      btn.classList.add('active-blue');
+      tag.style.display = 'block';
+      tag.textContent = '數據持續標記: ' + user.uid.substring(0,14).toUpperCase();
+    } else {
+      btn.classList.remove('active-blue');
+      tag.style.display = 'none';
+    }
+  });
+} catch(e) { console.warn('Firebase 未設定，略過登入功能', e); }
 
 document.getElementById('btn-google').addEventListener('click', async () => {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  try { await auth.signInWithPopup(provider); } catch(e) {}
+  if (!auth) return;
+  try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e) {}
 });
 
-// ══════════════════════════════════════════════════════════════
-//  EEG 真實連線 (Muse 2/S)
-// ══════════════════════════════════════════════════════════════
-const MUSE_SERVICE = 0xfe8d;
+// ── EEG ──────────────────────────────────────────────────────
+const MUSE_SERVICE      = 0xfe8d;
 const MUSE_CONTROL_CHAR = '273e0001-4c4d-454d-96be-f03bac821358';
-const MUSE_EEG_CH_AF7 = '273e0004-4c4d-454d-96be-f03bac821358';
-let museGatt = null;
-let eegBuf = [];
+const MUSE_EEG_CH_AF7   = '273e0004-4c4d-454d-96be-f03bac821358';
+let museGatt = null, eegBuf = [];
 
 function fft(re, im) {
   const n = re.length; if (n <= 1) return;
@@ -243,211 +153,181 @@ function fft(re, im) {
 function processEEG(value) {
   const data = new DataView(value.buffer);
   const decoded = [];
-  for(let i=2; i < data.byteLength - 2; i+=3) {
-    decoded.push(((data.getUint8(i) << 4) | (data.getUint8(i+1) >> 4)) - 2048);
-    decoded.push((((data.getUint8(i+1) & 0x0F) << 8) | data.getUint8(i+2)) - 2048);
+  for(let i=2; i<data.byteLength-2; i+=3){
+    decoded.push(((data.getUint8(i)<<4)|(data.getUint8(i+1)>>4))-2048);
+    decoded.push((((data.getUint8(i+1)&0x0F)<<8)|data.getUint8(i+2))-2048);
   }
   eegBuf.push(...decoded);
-  if(eegBuf.length > 256) {
+  if(eegBuf.length > 256){
     const sig = eegBuf.slice(-256);
     const re = [...sig], im = new Array(256).fill(0);
     fft(re, im);
     let aP=0, bP=0;
-    const hzToBin = hz => Math.round(hz * 256 / 256);
-    for(let i=hzToBin(8); i<hzToBin(13); i++) aP += re[i]*re[i]+im[i]*im[i];
+    const hzToBin = hz => Math.round(hz*256/256);
+    for(let i=hzToBin(8);  i<hzToBin(13); i++) aP += re[i]*re[i]+im[i]*im[i];
     for(let i=hzToBin(13); i<hzToBin(30); i++) bP += re[i]*re[i]+im[i]*im[i];
-    const tot = aP + bP + 1e-6;
+    const tot = aP+bP+1e-6;
     const alpha = aP/tot, beta = bP/tot;
-    
-    entropy = 0.1 + alpha * 0.9;
-    chaos = 0.1 + beta * 0.9;
+    entropy = 0.1+alpha*0.9; chaos = 0.1+beta*0.9;
     updateNeedle('needle-entropy', entropy);
     updateNeedle('needle-chaos', chaos);
-    
-    document.getElementById('eeg-hud').innerHTML = 
-      `<div style="color:#4ade80;margin-bottom:2px;">⬤ MUSE LIVE</div>` +
-      `<div>α_RELAX: ${(alpha*100).toFixed(0)}%</div>` +
-      `<div>β_FOCUS : ${(beta*100).toFixed(0)}%</div>`;
+    document.getElementById('eeg-hud').innerHTML =
+      '<div style="color:#4ade80;margin-bottom:2px;">&#x2B24; MUSE LIVE</div>'+
+      '<div>&#945;_RELAX: '+(alpha*100).toFixed(0)+'%</div>'+
+      '<div>&#946;_FOCUS : '+(beta*100).toFixed(0)+'%</div>';
     eegBuf = eegBuf.slice(-256);
   }
 }
 
 document.getElementById('btn-eeg').addEventListener('click', async () => {
-  const chaosWrap = document.getElementById('wrap-chaos');
-  const entropyWrap = document.getElementById('wrap-entropy');
-
-  if (eegActive) { 
-    if(museGatt) museGatt.disconnect(); 
-    eegActive = false; 
-    document.getElementById('btn-eeg').classList.remove('active-green'); 
+  const cw = document.getElementById('wrap-chaos');
+  const ew = document.getElementById('wrap-entropy');
+  if(eegActive){
+    if(museGatt) museGatt.disconnect();
+    eegActive = false;
+    document.getElementById('btn-eeg').classList.remove('active-green');
     document.getElementById('eeg-hud').textContent = '— 未連線';
-    chaosWrap.classList.remove('locked');
-    entropyWrap.classList.remove('locked');
-    return; 
+    cw.classList.remove('locked'); ew.classList.remove('locked');
+    return;
   }
   try {
-    const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [MUSE_SERVICE] }], optionalServices: [MUSE_SERVICE] });
+    const device = await navigator.bluetooth.requestDevice({
+      filters:[{services:[MUSE_SERVICE]}], optionalServices:[MUSE_SERVICE]
+    });
     museGatt = await device.gatt.connect();
-    const svc = await museGatt.getPrimaryService(MUSE_SERVICE);
+    const svc  = await museGatt.getPrimaryService(MUSE_SERVICE);
     const char = await svc.getCharacteristic(MUSE_EEG_CH_AF7);
     await char.startNotifications();
     char.addEventListener('characteristicvaluechanged', e => processEEG(e.target.value));
     const ctrl = await svc.getCharacteristic(MUSE_CONTROL_CHAR);
-    const enc = new TextEncoder();
+    const enc  = new TextEncoder();
     await ctrl.writeValue(enc.encode('v1\n'));
     await ctrl.writeValue(enc.encode('p21\n'));
     await ctrl.writeValue(enc.encode('d\n'));
-    
     eegActive = true;
     document.getElementById('btn-eeg').classList.add('active-green');
-    chaosWrap.classList.add('locked');
-    entropyWrap.classList.add('locked');
-    
-    device.addEventListener('gattserverdisconnected', () => { 
-      eegActive = false; 
+    cw.classList.add('locked'); ew.classList.add('locked');
+    device.addEventListener('gattserverdisconnected', () => {
+      eegActive = false;
       document.getElementById('btn-eeg').classList.remove('active-green');
-      chaosWrap.classList.remove('locked');
-      entropyWrap.classList.remove('locked');
+      cw.classList.remove('locked'); ew.classList.remove('locked');
     });
-  } catch(e) { console.error("EEG Link Fail", e); }
+  } catch(e){ console.error("EEG Link Fail", e); }
 });
 
-// ══════════════════════════════════════════════════════════════
-//  旋鈕交互邏輯 (修復 Entropy 不作用問題)
-// ══════════════════════════════════════════════════════════════
-function updateNeedle(id, val) { 
+// ── 旋鈕 ──────────────────────────────────────────────────────
+function updateNeedle(id, val){
   const el = document.getElementById(id);
-  if (el) el.style.transform = `rotate(${val*280-140}deg)`; 
+  if(el) el.style.transform = 'rotate('+(val*280-140)+'deg)';
 }
-
-function makeKnob(knobId, needleId, getter, setter) {
+function makeKnob(knobId, needleId, getter, setter){
   const knob = document.getElementById(knobId);
-  let dragging = false, lastY = 0;
-
-  const start = y => { 
-    if (eegActive) return;
-    dragging = true; 
-    lastY = y; 
-    knob.classList.add('dragging'); 
+  let dragging=false, lastY=0;
+  const start = y => { if(eegActive) return; dragging=true; lastY=y; knob.classList.add('dragging'); };
+  const move  = y => {
+    if(!dragging||eegActive) return;
+    const nv = Math.max(0,Math.min(1, getter()+(lastY-y)*0.008));
+    setter(nv); updateNeedle(needleId,nv); lastY=y;
   };
-  
-  const move = y => { 
-    if (!dragging || eegActive) return; 
-    const delta = lastY - y; 
-    const step = 0.008;
-    const currentVal = getter();
-    const newVal = Math.max(0, Math.min(1, currentVal + delta * step));
-    setter(newVal); 
-    updateNeedle(needleId, newVal); 
-    lastY = y; 
-  };
-  
-  const end = () => { 
-    dragging = false; 
-    knob.classList.remove('dragging'); 
-  };
-
-  knob.addEventListener('mousedown', e => { e.stopPropagation(); start(e.clientY); });
+  const end = () => { dragging=false; knob.classList.remove('dragging'); };
+  knob.addEventListener('mousedown',  e => { e.stopPropagation(); start(e.clientY); });
   window.addEventListener('mousemove', e => move(e.clientY));
-  window.addEventListener('mouseup', end);
-  
-  knob.addEventListener('touchstart', e => { e.stopPropagation(); start(e.touches[0].clientY); }, {passive:false});
-  window.addEventListener('touchmove', e => { if(dragging) { e.preventDefault(); move(e.touches[0].clientY); } }, {passive:false});
-  window.addEventListener('touchend', end);
+  window.addEventListener('mouseup',   end);
+  knob.addEventListener('touchstart',  e => { e.stopPropagation(); start(e.touches[0].clientY); }, {passive:false});
+  window.addEventListener('touchmove', e => { if(dragging){ e.preventDefault(); move(e.touches[0].clientY); } }, {passive:false});
+  window.addEventListener('touchend',  end);
 }
+makeKnob('knob-chaos',   'needle-chaos',   () => chaos,   v => chaos=v);
+makeKnob('knob-entropy', 'needle-entropy', () => entropy, v => entropy=v);
 
-// 綁定旋鈕事件
-makeKnob('knob-chaos', 'needle-chaos', () => chaos, v => chaos = v);
-makeKnob('knob-entropy', 'needle-entropy', () => entropy, v => entropy = v);
-
-// ══════════════════════════════════════════════════════════════
-//  Three.js 核心引擎與視覺一致性
-// ══════════════════════════════════════════════════════════════
-async function initThree() {
+// ── Three.js ──────────────────────────────────────────────────
+async function initThree(){
   const video = document.getElementById('video');
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } });
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{ width:640, height:480, facingMode:"user" } });
     video.srcObject = stream;
     await video.play();
-  } catch(e) { console.error("Camera fail", e); }
+  } catch(e){ console.error("Camera fail", e); }
 
-  scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  scene  = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
   camera.position.z = 110;
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   document.getElementById('container').appendChild(renderer.domElement);
 
   videoTexture = new THREE.VideoTexture(video);
 
+  // 背景與粒子共用 shaderMat → 粒子映照自動與背景濾鏡同步
   shaderMat = new THREE.ShaderMaterial({
-    uniforms: { 
-      tDiffuse: { value: videoTexture }, 
-      phasePair: { value: 1 }, 
-      subMode: { value: 0 }, 
-      time: { value: 0 }, 
-      chaos: { value: 0.5 }, 
-      transition: { value: 1.0 } 
+    uniforms:{
+      tDiffuse:{value:videoTexture}, phasePair:{value:1},
+      subMode:{value:0}, time:{value:0}, chaos:{value:0.5}, transition:{value:1.0}
     },
-    vertexShader: `
+    vertexShader:`
       varying vec2 vUv; uniform float time; uniform float chaos;
-      void main() {
+      void main(){
         vUv = uv; vec3 pos = position;
-        float wave = sin(time * (1.1 + chaos * 1.5) + (pos.x * 0.06 + pos.y * 0.06)) * (chaos * 20.0);
-        pos.z += wave; gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        float wave = sin(time*(1.1+chaos*1.5)+(pos.x*0.06+pos.y*0.06))*(chaos*20.0);
+        pos.z += wave;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos,1.0);
       }
     `,
-    fragmentShader: `
-      uniform sampler2D tDiffuse; uniform int phasePair; uniform int subMode; uniform float time; uniform float chaos; uniform float transition; varying vec2 vUv;
-      void main() {
+    fragmentShader:`
+      uniform sampler2D tDiffuse; uniform int phasePair; uniform int subMode;
+      uniform float time; uniform float chaos; uniform float transition;
+      varying vec2 vUv;
+      void main(){
         vec2 uv = vUv;
-        if(chaos > 0.1) {
-          float d = distance(uv, vec2(0.5));
-          uv.x += sin(d * 12.0 - time * 1.5) * 0.025 * chaos;
-          uv.y += cos(d * 12.0 - time * 1.5) * 0.025 * chaos;
+        if(chaos>0.1){
+          float d = distance(uv,vec2(0.5));
+          uv.x += sin(d*12.0-time*1.5)*0.025*chaos;
+          uv.y += cos(d*12.0-time*1.5)*0.025*chaos;
         }
         vec4 finalCol;
-        if (subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25;
-        if (subMode == 4) { float size = 60.0 - (chaos * 50.0); uv = floor(uv * size) / size; }
-        if (subMode == 5) {
-          float shift = 0.03 * chaos;
-          finalCol = vec4(texture2D(tDiffuse, uv + vec2(shift, 0.0)).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - vec2(shift, 0.0)).b, 1.0);
-        } else finalCol = texture2D(tDiffuse, uv);
-        float luma = dot(finalCol.rgb, vec3(0.299, 0.587, 0.114));
-        if (subMode == 0) {
-          vec3 col = mix(vec3(0.05), vec3(0.7, 0.85, 1.0), luma);
-          if(luma > 0.55) col = mix(col, vec3(1.0), (luma-0.55)*2.5);
-          finalCol = vec4(col, 1.0);
-        } else if (subMode == 1) finalCol = vec4(vec3(fwidth(luma) * (18.0 + chaos * 25.0)), 1.0);
-        else if (subMode == 2) {
-          finalCol.rgb = vec3(1.0) - finalCol.rgb;
-          finalCol.rgb *= vec3(0.9, 0.95, 1.0);
+        if(subMode==3) uv.x = abs(uv.x-0.5)+0.25;
+        if(subMode==4){ float size=60.0-(chaos*50.0); uv=floor(uv*size)/size; }
+        if(subMode==5){
+          float shift=0.03*chaos;
+          finalCol=vec4(texture2D(tDiffuse,uv+vec2(shift,0.0)).r,
+                        texture2D(tDiffuse,uv).g,
+                        texture2D(tDiffuse,uv-vec2(shift,0.0)).b,1.0);
+        } else finalCol=texture2D(tDiffuse,uv);
+        float luma=dot(finalCol.rgb,vec3(0.299,0.587,0.114));
+        if(subMode==0){
+          vec3 col=mix(vec3(0.05),vec3(0.7,0.85,1.0),luma);
+          if(luma>0.55) col=mix(col,vec3(1.0),(luma-0.55)*2.5);
+          finalCol=vec4(col,1.0);
+        } else if(subMode==1)
+          finalCol=vec4(vec3(fwidth(luma)*(18.0+chaos*25.0)),1.0);
+        else if(subMode==2){
+          finalCol.rgb=vec3(1.0)-finalCol.rgb;
+          finalCol.rgb*=vec3(0.9,0.95,1.0);
         }
-        gl_FragColor = finalCol * transition;
+        gl_FragColor=finalCol*transition;
       }
     `,
-    transparent: true
+    transparent:true
   });
 
-  mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(235, 175, 128, 128), shaderMat);
+  mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(235,175,128,128), shaderMat);
   scene.add(mesh);
 
   particles = new THREE.Group();
-  const cols = 15, rows = 12, pw = 230/cols, ph = 170/rows;
+  const cols=15, rows=12, pw=230/cols, ph=170/rows;
   const geos = [
     new THREE.TorusKnotBufferGeometry(pw/3.6, 0.1, 32, 8),
     new THREE.OctahedronBufferGeometry(pw/2.1, 1),
     new THREE.CylinderBufferGeometry(pw/4.5, pw/4.5, ph*0.8, 8, 1),
     new THREE.SphereBufferGeometry(pw/2.2, 16, 12),
   ];
-  const sizeScales = [1.8, 1.3, 1.0, 0.5]; 
-
-  for(let i=0; i<cols; i++) for(let j=0; j<rows; j++){
-    const geo = geos[Math.floor(Math.random()*geos.length)];
-    const p = new THREE.Mesh(geo, shaderMat); 
-    const scale = sizeScales[Math.floor(Math.random() * sizeScales.length)];
-    p.scale.set(scale, scale, scale);
+  const sizeScales = [1.8, 1.3, 1.0, 0.5];
+  for(let i=0;i<cols;i++) for(let j=0;j<rows;j++){
+    const geo   = geos[Math.floor(Math.random()*geos.length)];
+    const p     = new THREE.Mesh(geo, shaderMat);
+    const scale = sizeScales[Math.floor(Math.random()*sizeScales.length)];
+    p.scale.set(scale,scale,scale);
     p.position.set(i*pw-115+pw/2, j*ph-85+ph/2, (Math.random()-.5)*20);
     p.userData = { origin:p.position.clone(), v:new THREE.Vector3(), noise:Math.random()*100 };
     particles.add(p);
@@ -459,129 +339,125 @@ async function initThree() {
     new THREE.LineBasicMaterial({ color:0x444444, transparent:true, opacity:0.08 })
   );
   scene.add(liquidWeb);
-
   animate();
 }
 
-function updateTracking() {
-  if (state.isInteracting) return;
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('motion-canvas');
-  if (!video || video.readyState < 2) return;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const curr = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  if (prevFrame) {
-    let tx=0, ty=0, count=0;
-    for(let i=0; i<curr.data.length; i+=4){
-      const diff = (Math.abs(curr.data[i]-prevFrame.data[i])+Math.abs(curr.data[i+1]-prevFrame.data[i+1])+Math.abs(curr.data[i+2]-prevFrame.data[i+2]))/3;
-      if(diff > 26){
-        const idx = i/4; tx += idx % canvas.width; ty += Math.floor(idx / canvas.width); count++;
-      }
+function updateTracking(){
+  if(state.isInteracting) return;
+  const video=document.getElementById('video'), canvas=document.getElementById('motion-canvas');
+  if(!video||video.readyState<2) return;
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const curr=ctx.getImageData(0,0,canvas.width,canvas.height);
+  if(prevFrame){
+    let tx=0,ty=0,count=0;
+    for(let i=0;i<curr.data.length;i+=4){
+      const diff=(Math.abs(curr.data[i]-prevFrame.data[i])+Math.abs(curr.data[i+1]-prevFrame.data[i+1])+Math.abs(curr.data[i+2]-prevFrame.data[i+2]))/3;
+      if(diff>26){ const idx=i/4; tx+=idx%canvas.width; ty+=Math.floor(idx/canvas.width); count++; }
     }
-    if(count > 25){
-      let nx = 1.0 - (tx/count/canvas.width);
-      nx = Math.max(0, Math.min(1, (nx-0.05)/0.9));
-      state.targetX = nx * window.innerWidth;
-      state.targetY = (ty/count/canvas.height) * window.innerHeight;
+    if(count>25){
+      let nx=1.0-(tx/count/canvas.width);
+      nx=Math.max(0,Math.min(1,(nx-0.05)/0.9));
+      state.targetX=nx*window.innerWidth;
+      state.targetY=(ty/count/canvas.height)*window.innerHeight;
       document.getElementById('cursor-el').classList.add('detecting');
     } else { document.getElementById('cursor-el').classList.remove('detecting'); }
   }
-  if(!prevFrame) prevFrame = new ImageData(curr.width, curr.height);
+  if(!prevFrame) prevFrame=new ImageData(curr.width,curr.height);
   prevFrame.data.set(curr.data);
 }
 
-function animate() {
+function animate(){
   requestAnimationFrame(animate);
-  const time = Date.now() * 0.001;
-  if (!shaderMat) return;
+  const time=Date.now()*0.001;
+  if(!shaderMat) return;
 
-  shaderMat.uniforms.time.value = time;
-  shaderMat.uniforms.chaos.value = chaos;
-  state.transition += (state.targetTransition - state.transition) * 0.12;
-  shaderMat.uniforms.transition.value = state.transition;
+  shaderMat.uniforms.time.value=time;
+  shaderMat.uniforms.chaos.value=chaos;
+  state.transition+=(state.targetTransition-state.transition)*0.12;
+  shaderMat.uniforms.transition.value=state.transition;
 
   updateTracking();
-  
-  // 熵增影響：CRT 閃爍與抖動
-  const crt = document.getElementById('crt-overlay');
-  if (crt) {
-    // 熵增越高，掃描線穩定度越低
-    const flicker = Math.sin(time * 50) * 0.02 * entropy;
-    crt.style.opacity = (0.7 + flicker).toString();
+
+  const crt=document.getElementById('crt-overlay');
+  if(crt) crt.style.opacity=(0.7+Math.sin(time*50)*0.02*entropy).toString();
+
+  state.currentX+=(state.targetX-state.currentX)*0.22;
+  state.currentY+=(state.targetY-state.currentY)*0.22;
+  document.getElementById('cursor-el').style.left=state.currentX+'px';
+  document.getElementById('cursor-el').style.top=state.currentY+'px';
+
+  const cycleTime=8000/(0.35+entropy*1.8);
+  if(Date.now()-state.lastSwitch>cycleTime){
+    state.targetTransition=0.1;
+    setTimeout(()=>{
+      state.modeCounter=(state.modeCounter+1)%6; state.subMode=state.modeCounter;
+      state.phasePair=Math.floor(Math.random()*3)+1;
+      shaderMat.uniforms.subMode.value=state.subMode;
+      shaderMat.uniforms.phasePair.value=state.phasePair;
+      mesh.visible=(state.phasePair===1||state.phasePair===3);
+      particles.visible=(state.phasePair===2||state.phasePair===3);
+      state.targetTransition=1.0;
+    },400);
+    state.lastSwitch=Date.now();
   }
 
-  state.currentX += (state.targetX - state.currentX) * 0.22;
-  state.currentY += (state.targetY - state.currentY) * 0.22;
-  document.getElementById('cursor-el').style.left = state.currentX+'px';
-  document.getElementById('cursor-el').style.top = state.currentY+'px';
+  const wm=new THREE.Vector3(
+    ((state.currentX/window.innerWidth)*2-1)*115,
+    -((state.currentY/window.innerHeight)*2-1)*85, 10
+  );
 
-  // 熵增影響：切換週期
-  const cycleTime = 8000 / (0.35 + entropy * 1.8);
-  if (Date.now() - state.lastSwitch > cycleTime) {
-    state.targetTransition = 0.1;
-    setTimeout(() => {
-      state.modeCounter = (state.modeCounter + 1) % 6; state.subMode = state.modeCounter;
-      state.phasePair = Math.floor(Math.random() * 3) + 1;
-      shaderMat.uniforms.subMode.value = state.subMode; shaderMat.uniforms.phasePair.value = state.phasePair;
-      mesh.visible = state.phasePair === 1 || state.phasePair === 3;
-      particles.visible = state.phasePair === 2 || state.phasePair === 3;
-      state.targetTransition = 1.0;
-    }, 400);
-    state.lastSwitch = Date.now();
-  }
-
-  const wm = new THREE.Vector3(((state.currentX/window.innerWidth)*2-1)*115, -((state.currentY/window.innerHeight)*2-1)*85, 10);
-  if (mesh.visible) {
-    const arr = mesh.geometry.attributes.position.array;
-    for (let i = 0; i < arr.length; i += 3) {
-      const dist = Math.sqrt((arr[i]-wm.x)**2 + (arr[i+1]-wm.y)**2);
-      // 熵增影響：增加額外的背景震動噪訊
-      let jitter = (Math.random() - 0.5) * entropy * 2.0;
-      let z = Math.sin(time*1.2+(arr[i]+arr[i+1])*0.04)*(4.5+chaos*8.0) + jitter;
-      if (dist < 100) z += (100 - dist) * (0.6 + chaos * 1.8);
-      arr[i+2] = z;
+  if(mesh.visible){
+    const arr=mesh.geometry.attributes.position.array;
+    for(let i=0;i<arr.length;i+=3){
+      const dist=Math.sqrt((arr[i]-wm.x)**2+(arr[i+1]-wm.y)**2);
+      const jitter=(Math.random()-0.5)*entropy*2.0;
+      let z=Math.sin(time*1.2+(arr[i]+arr[i+1])*0.04)*(4.5+chaos*8.0)+jitter;
+      if(dist<100) z+=(100-dist)*(0.6+chaos*1.8);
+      arr[i+2]=z;
     }
-    mesh.geometry.attributes.position.needsUpdate = true;
+    mesh.geometry.attributes.position.needsUpdate=true;
   }
 
-  if (particles.visible) {
-    const pts = [];
-    particles.children.forEach(p => {
-      const ud = p.userData; let target = ud.origin.clone();
-      target.x += Math.sin(time*(0.35+chaos*1.3)+ud.noise)*(42*chaos);
-      target.y += Math.cos(time*0.85*(0.35+chaos*1.3)+ud.noise)*(42*chaos);
-      const dist = p.position.distanceTo(wm);
-      if (dist < 88) {
-        ud.v.add(new THREE.Vector3().subVectors(p.position, wm).normalize().multiplyScalar((1-dist/88)*(3.5+chaos*9.0)));
-        if(Math.random() > 0.85) pts.push(p.position.x, p.position.y, p.position.z, wm.x, wm.y, wm.z);
+  if(particles.visible){
+    const pts=[];
+    particles.children.forEach(p=>{
+      const ud=p.userData;
+      let target=ud.origin.clone();
+      target.x+=Math.sin(time*(0.35+chaos*1.3)+ud.noise)*(42*chaos);
+      target.y+=Math.cos(time*0.85*(0.35+chaos*1.3)+ud.noise)*(42*chaos);
+      const dist=p.position.distanceTo(wm);
+      if(dist<88){
+        ud.v.add(new THREE.Vector3().subVectors(p.position,wm).normalize().multiplyScalar((1-dist/88)*(3.5+chaos*9.0)));
+        if(Math.random()>0.85) pts.push(p.position.x,p.position.y,p.position.z,wm.x,wm.y,wm.z);
       }
-      ud.v.add(new THREE.Vector3().subVectors(target, p.position).multiplyScalar(0.025));
-      ud.v.multiplyScalar(0.86 - chaos * 0.12);
-      p.position.add(ud.v); p.rotation.x += ud.v.length() * 0.07;
+      ud.v.add(new THREE.Vector3().subVectors(target,p.position).multiplyScalar(0.025));
+      ud.v.multiplyScalar(0.86-chaos*0.12);
+      p.position.add(ud.v);
+      p.rotation.x+=ud.v.length()*0.07;
     });
-    liquidWeb.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    liquidWeb.geometry.attributes.position.needsUpdate = true;
+    liquidWeb.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+    liquidWeb.geometry.attributes.position.needsUpdate=true;
   }
-  renderer.render(scene, camera);
+  renderer.render(scene,camera);
 }
 
-window.addEventListener('resize', () => {
-  if (camera && renderer) {
-    camera.aspect = window.innerWidth / window.innerHeight; 
-    camera.updateProjectionMatrix(); 
-    renderer.setSize(window.innerWidth, window.innerHeight);
+window.addEventListener('resize',()=>{
+  if(camera&&renderer){
+    camera.aspect=window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth,window.innerHeight);
   }
 });
 
-function onInteract(cx, cy) { state.isInteracting = true; state.targetX = cx; state.targetY = cy; }
-const container = document.getElementById('container');
-container.addEventListener('mousedown', e => onInteract(e.clientX, e.clientY));
-container.addEventListener('mousemove', e => { if(e.buttons > 0) onInteract(e.clientX, e.clientY); });
-container.addEventListener('mouseup', () => state.isInteracting = false);
-container.addEventListener('touchstart', e => onInteract(e.touches[0].clientX, e.touches[0].clientY), {passive:true});
-container.addEventListener('touchmove', e => onInteract(e.touches[0].clientX, e.touches[0].clientY), {passive:true});
-container.addEventListener('touchend', () => state.isInteracting = false);
+function onInteract(cx,cy){ state.isInteracting=true; state.targetX=cx; state.targetY=cy; }
+const container=document.getElementById('container');
+container.addEventListener('mousedown',  e=>onInteract(e.clientX,e.clientY));
+container.addEventListener('mousemove',  e=>{ if(e.buttons>0) onInteract(e.clientX,e.clientY); });
+container.addEventListener('mouseup',    ()=>state.isInteracting=false);
+container.addEventListener('touchstart', e=>onInteract(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+container.addEventListener('touchmove',  e=>onInteract(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+container.addEventListener('touchend',   ()=>state.isInteracting=false);
 
 initThree();
 </script>
