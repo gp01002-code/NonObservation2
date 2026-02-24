@@ -185,6 +185,14 @@
 <!-- UID 顯示 -->
 <div id="uid-tag"></div>
 
+<!-- EEG 即時腦波 HUD -->
+<div id="eeg-hud" style="
+  position:absolute; left:20px; bottom:110px; z-index:50;
+  font-size:10px; line-height:1.8; letter-spacing:.12em;
+  color:rgba(255,255,255,.35); font-family:monospace;
+  pointer-events:none;
+">— 未連線</div>
+
 <!-- Google One Tap 容器 -->
 <div id="g_id_onload"
   data-client_id=""
@@ -265,23 +273,191 @@ window.addEventListener('load', () => {
 });
 
 // ══════════════════════════════════════════════════════════════
-//  EEG 模擬
+//  EEG 真實連線 — Muse 2 / Muse S (Web Bluetooth)
+//  Alpha (8-13Hz) 高 → 放鬆 → entropy ↑
+//  Beta  (13-30Hz) 高 → 緊繃 → chaos  ↑
 // ══════════════════════════════════════════════════════════════
-let eegInterval = null;
-document.getElementById('btn-eeg').addEventListener('click', () => {
-  eegActive = !eegActive;
-  const btn = document.getElementById('btn-eeg');
-  if (eegActive) {
-    btn.classList.add('active-green');
-    console.log("正在尋找 EEG 腦波設備 (Web Bluetooth)...");
-    eegInterval = setInterval(() => {
-      entropy = Math.max(0.1, Math.min(1, entropy + (Math.random()-0.5)*0.15));
-      updateNeedle('needle-entropy', entropy);
-    }, 2000);
-  } else {
-    btn.classList.remove('active-green');
-    clearInterval(eegInterval);
+
+// ── Muse BLE 常數 ─────────────────────────────────────────────
+const MUSE_SERVICE      = 0xfe8d;
+const MUSE_CONTROL_CHAR = '273e0001-4c4d-454d-96be-f03bac821358';
+const MUSE_EEG_CHARS    = [
+  '273e0003-4c4d-454d-96be-f03bac821358', // TP9
+  '273e0004-4c4d-454d-96be-f03bac821358', // AF7  ← 主分析通道
+  '273e0005-4c4d-454d-96be-f03bac821358', // AF8
+  '273e0006-4c4d-454d-96be-f03bac821358', // TP10
+];
+
+// ── DSP 參數 ──────────────────────────────────────────────────
+const EEG_SR   = 256;   // 取樣率 Hz
+const FFT_N    = 256;   // FFT 窗口大小
+const SMOOTH   = 0.88;  // 平滑係數
+
+function hzBin(hz){ return Math.round(hz * FFT_N / EEG_SR); }
+const A_LO = hzBin(8),  A_HI = hzBin(13);  // Alpha
+const B_LO = hzBin(13), B_HI = hzBin(30);  // Beta
+
+// ── 狀態 ─────────────────────────────────────────────────────
+let museGatt   = null;
+let eegBufs    = [[],[],[],[]];
+let sAlpha     = 0.5, sBeta = 0.5;
+let eegStatus  = '未連線';
+
+// ── 簡易 Cooley–Tukey FFT ─────────────────────────────────────
+function fft(re, im) {
+  const n = re.length;
+  if (n <= 1) return;
+  const h = n >> 1;
+  const reE=[],reO=[],imE=[],imO=[];
+  for(let i=0;i<h;i++){
+    reE[i]=re[i*2]; imE[i]=im[i*2];
+    reO[i]=re[i*2+1]; imO[i]=im[i*2+1];
   }
+  fft(reE,imE); fft(reO,imO);
+  for(let k=0;k<h;k++){
+    const a=-2*Math.PI*k/n;
+    const c=Math.cos(a), s=Math.sin(a);
+    const tr=c*reO[k]-s*imO[k], ti=s*reO[k]+c*imO[k];
+    re[k]=reE[k]+tr; im[k]=imE[k]+ti;
+    re[k+h]=reE[k]-tr; im[k+h]=imE[k]-ti;
+  }
+}
+
+function bandPower(sig, lo, hi) {
+  const re=new Array(FFT_N).fill(0), im=new Array(FFT_N).fill(0);
+  const st=Math.max(0,sig.length-FFT_N);
+  for(let i=0;i<FFT_N&&i<sig.length-st;i++) re[i]=sig[st+i];
+  fft(re,im);
+  let p=0;
+  for(let i=lo;i<hi;i++) p+=re[i]*re[i]+im[i]*im[i];
+  return p/(hi-lo);
+}
+
+// ── 解碼 Muse 12-bit EEG 封包 ────────────────────────────────
+function decodeMuseEEG(data) {
+  const out=[];
+  let i=2;
+  while(i+2<data.byteLength){
+    const b0=data.getUint8(i),b1=data.getUint8(i+1),b2=data.getUint8(i+2);
+    out.push(((b0<<4)|(b1>>4))-2048);
+    out.push((((b1&0x0F)<<8)|b2)-2048);
+    i+=3;
+  }
+  return out;
+}
+
+// ── 處理每幀 EEG 數據 ─────────────────────────────────────────
+function processEEG(ch, data) {
+  const s = decodeMuseEEG(data);
+  eegBufs[ch].push(...s);
+  const MAX = FFT_N * 4;
+  if(eegBufs[ch].length > MAX) eegBufs[ch].splice(0, eegBufs[ch].length-MAX);
+
+  // 僅用 AF7 (ch=1) 做頻帶分析
+  if(ch!==1 || eegBufs[1].length<FFT_N) return;
+
+  const alpha = bandPower(eegBufs[1], A_LO, A_HI);
+  const beta  = bandPower(eegBufs[1], B_LO, B_HI);
+  const tot   = alpha + beta + 1e-9;
+
+  sAlpha = sAlpha*SMOOTH + (alpha/tot)*(1-SMOOTH);
+  sBeta  = sBeta *SMOOTH + (beta /tot)*(1-SMOOTH);
+
+  // 映射 → chaos / entropy（連線中停用手動旋鈕覆蓋）
+  entropy = Math.max(0.1, Math.min(1, sAlpha * 2.5));
+  chaos   = Math.max(0.1, Math.min(1, sBeta  * 3.0));
+  updateNeedle('needle-entropy', entropy);
+  updateNeedle('needle-chaos',   chaos);
+
+  // 更新 HUD
+  updateEEGHud();
+}
+
+// ── HUD 更新 ─────────────────────────────────────────────────
+function updateEEGHud() {
+  const el = document.getElementById('eeg-hud');
+  if(!el) return;
+  el.innerHTML =
+    `<div style="color:rgba(74,222,128,.9);margin-bottom:4px;">⬤ MUSE LIVE</div>` +
+    `<div>α ${(sAlpha*100).toFixed(0).padStart(3)} %  <span style="color:#60a5fa">→ entropy</span></div>` +
+    `<div>β ${(sBeta *100).toFixed(0).padStart(3)} %  <span style="color:#f87171">→ chaos</span></div>`;
+}
+
+// ── 啟動 Muse 串流指令 ────────────────────────────────────────
+async function startMuseStream(svc) {
+  const ctrl = await svc.getCharacteristic(MUSE_CONTROL_CHAR);
+  const enc  = new TextEncoder();
+  await ctrl.writeValue(enc.encode('v1\n'));
+  await new Promise(r=>setTimeout(r,200));
+  await ctrl.writeValue(enc.encode('p21\n'));
+  await new Promise(r=>setTimeout(r,200));
+  await ctrl.writeValue(enc.encode('d\n'));
+}
+
+// ── 主連線 ────────────────────────────────────────────────────
+async function connectMuse() {
+  const btn = document.getElementById('btn-eeg');
+  const hud = document.getElementById('eeg-hud');
+  if(hud) hud.innerHTML = `<div style="color:#facc15;">⏳ 搜尋中…</div>`;
+
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [MUSE_SERVICE] }],
+      optionalServices: [MUSE_SERVICE],
+    });
+
+    device.addEventListener('gattserverdisconnected', () => {
+      eegActive = false;
+      museGatt  = null;
+      eegBufs   = [[],[],[],[]];
+      btn.classList.remove('active-green');
+      const h = document.getElementById('eeg-hud');
+      if(h) h.innerHTML = `<div style="color:#f87171;">✕ 已斷線</div>`;
+      console.log('Muse 斷線');
+    });
+
+    museGatt = await device.gatt.connect();
+    const svc = await museGatt.getPrimaryService(MUSE_SERVICE);
+
+    for(let ch=0; ch<MUSE_EEG_CHARS.length; ch++){
+      const c = await svc.getCharacteristic(MUSE_EEG_CHARS[ch]);
+      await c.startNotifications();
+      c.addEventListener('characteristicvaluechanged', e => processEEG(ch, e.target.value));
+    }
+
+    await startMuseStream(svc);
+
+    eegActive = true;
+    btn.classList.add('active-green');
+    console.log('✓ Muse 連線成功');
+    updateEEGHud();
+
+  } catch(err) {
+    eegActive = false;
+    museGatt  = null;
+    btn.classList.remove('active-green');
+    const h = document.getElementById('eeg-hud');
+    if(h) h.innerHTML = `<div style="color:#f87171;">✕ ${err.message}</div>`;
+    console.error('EEG 連線失敗:', err.message);
+  }
+}
+
+// ── 斷線 ─────────────────────────────────────────────────────
+function disconnectMuse() {
+  if(museGatt?.connected) museGatt.disconnect();
+  eegActive = false; museGatt = null; eegBufs = [[],[],[],[]];
+  document.getElementById('btn-eeg').classList.remove('active-green');
+  const h = document.getElementById('eeg-hud');
+  if(h) h.innerHTML = `<div style="color:rgba(255,255,255,.3);">— 未連線</div>`;
+}
+
+// ── 按鈕事件 ─────────────────────────────────────────────────
+document.getElementById('btn-eeg').addEventListener('click', () => {
+  if (!navigator.bluetooth) {
+    alert('此瀏覽器不支援 Web Bluetooth\n請使用 Chrome（桌面版）');
+    return;
+  }
+  eegActive ? disconnectMuse() : connectMuse();
 });
 
 // ══════════════════════════════════════════════════════════════
