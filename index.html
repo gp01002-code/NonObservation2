@@ -1,479 +1,592 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, signInAnonymously, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SELF_OBSERVER :: v14</title>
 
-// -----------------------------------------------------------------------
-// Firebase 初始化 (由環境自動注入)
-// -----------------------------------------------------------------------
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'self-observer-v14';
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-const App = () => {
-  // 狀態管理
-  const [user, setUser] = useState(null);
-  const [eegActive, setEegActive] = useState(false);
-  const [chaos, setChaos] = useState(0.5);
-  const [entropy, setEntropy] = useState(0.4);
-  
-  // DOM 與 引擎 Refs
-  const containerRef = useRef(null);
-  const videoRef = useRef(null);
-  const motionCanvasRef = useRef(null);
-  const cursorRef = useRef(null);
-  
-  const engineRef = useRef({
-    scene: null, camera: null, renderer: null, shaderMat: null,
-    mesh: null, particles: null, liquidWeb: null
-  });
+  <!-- Firebase v9 compat (CDN) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-  const stateRef = useRef({ 
-    targetX: window.innerWidth / 2, targetY: window.innerHeight / 2,
-    currentX: window.innerWidth / 2, currentY: window.innerHeight / 2,
-    lastSwitch: Date.now(), transition: 1, targetTransition: 1,
-    isInteracting: false, subMode: 0, modeCounter: 0, phasePair: 1,
-    chaos: 0.5, entropy: 0.4, eegActive: false
-  });
+  <!-- Google One Tap -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-  // 同步 React 狀態至動畫迴圈
-  useEffect(() => {
-    stateRef.current.chaos = chaos;
-    stateRef.current.entropy = entropy;
-    stateRef.current.eegActive = eegActive;
-  }, [chaos, entropy, eegActive]);
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-  // -----------------------------------------------------------------------
-  // API 功能：Google 登入 (實作數據持久化基礎)
-  // -----------------------------------------------------------------------
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (e) { console.error("Auth Init Fail", e); }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
-  }, []);
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #000; overflow: hidden; font-family: monospace; color: #fff; user-select: none; }
 
-  const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      // 真正喚起 Google API
-      await signInWithPopup(auth, provider);
-    } catch (e) {
-      console.warn("登入被取消或網域未授權");
+    /* CRT 掃描線 */
+    #crt-overlay {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      background:
+        linear-gradient(rgba(18,16,16,0) 50%, rgba(255,255,255,0.02) 50%),
+        linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.01));
+      background-size: 100% 3px, 3px 100%;
     }
-  };
 
-  // -----------------------------------------------------------------------
-  // EEG 功能：預留藍牙連接邏輯
-  // -----------------------------------------------------------------------
-  const toggleEEG = async () => {
-    if (!eegActive) {
-      // 未來實作：navigator.bluetooth.requestDevice(...)
-      console.log("正在尋找 EEG 腦波設備 (Web Bluetooth)...");
-      setEegActive(true);
+    /* 感應游標 */
+    #cursor-el {
+      position: fixed;
+      width: 48px; height: 48px;
+      border: 1px solid #ef4444;
+      border-radius: 50%;
+      z-index: 100;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      mix-blend-mode: screen;
+      transition: width .3s, height .3s, border-color .3s;
+    }
+    #cursor-el.detecting {
+      width: 65px; height: 65px;
+      border-width: 3px;
+      border-color: #fff;
+      box-shadow: 0 0 25px rgba(255,255,255,0.5);
+    }
+
+    /* 旋鈕 */
+    .knob-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .knob-label { font-size: 9px; color: rgba(255,255,255,0.4); letter-spacing: .15em; }
+    .knob {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent);
+      cursor: ns-resize;
+      transition: border-color .3s, transform .3s, box-shadow .3s;
+    }
+    .knob.dragging {
+      border-color: rgba(255,255,255,0.7);
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255,255,255,0.1);
+    }
+    .knob-needle {
+      position: absolute;
+      width: 2px; height: 42%;
+      background: rgba(255,255,255,0.9);
+      box-shadow: 0 0 10px rgba(255,255,255,0.6);
+      transform-origin: bottom center;
+      bottom: 50%; left: calc(50% - 1px);
+    }
+
+    /* 指示燈按鈕 */
+    .indicator-btn {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.2);
+      cursor: pointer;
+      transition: background .7s, box-shadow .7s;
+    }
+    .indicator-btn.active-blue {
+      background: #60a5fa;
+      box-shadow: 0 0 15px rgba(96,165,250,0.9);
+      border-color: transparent;
+    }
+    .indicator-btn.active-green {
+      background: #4ade80;
+      box-shadow: 0 0 15px rgba(74,222,128,0.9);
+      border-color: transparent;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    /* Google One Tap 容器 */
+    #g_id_onload { position: fixed; top: 60px; right: 16px; z-index: 200; }
+
+    /* UID 標記 */
+    #uid-tag {
+      position: absolute; top: 24px; right: 32px;
+      font-size: 9px; color: rgba(96,165,250,0.7);
+      letter-spacing: .2em; display: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Firebase 設定區：填入你自己的設定 ─────────────────────────────── -->
+<!-- ★ 請將下方 firebaseConfig 換成你的專案值 ★ -->
+<!-- ★ Google Client ID 也請換成你的 OAuth 2.0 用戶端 ID ★ -->
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey:            "YOUR_API_KEY",
+    authDomain:        "YOUR_PROJECT.firebaseapp.com",
+    projectId:         "YOUR_PROJECT_ID",
+    storageBucket:     "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId:             "YOUR_APP_ID"
+  };
+  const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+</script>
+<!-- ──────────────────────────────────────────────────────────────────── -->
+
+<!-- CRT -->
+<div id="crt-overlay"></div>
+
+<!-- 感應游標 -->
+<div id="cursor-el"></div>
+
+<!-- 渲染容器 -->
+<div id="container" style="width:100vw;height:100vh;cursor:none;position:relative;"></div>
+
+<!-- 隱藏攝影機 -->
+<video id="video" style="display:none;" playsinline muted autoplay></video>
+
+<!-- 動態偵測縮圖 -->
+<canvas id="motion-canvas" width="100" height="75"
+  style="position:absolute;bottom:20px;left:20px;opacity:.2;border:1px solid rgba(255,255,255,.1);z-index:50;pointer-events:none;">
+</canvas>
+
+<!-- 右下控制區 -->
+<div id="controls"
+  style="position:absolute;right:40px;bottom:40px;display:flex;flex-direction:column;align-items:flex-end;gap:24px;z-index:50;">
+
+  <!-- 指示燈 -->
+  <div style="display:flex;gap:20px;margin-bottom:8px;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+      <span style="font-size:7px;color:rgba(255,255,255,.3);letter-spacing:.25em;">驗證_API</span>
+      <button id="btn-google" class="indicator-btn" title="連結 Google 帳號"></button>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+      <span style="font-size:7px;color:rgba(255,255,255,.3);letter-spacing:.25em;">腦波_連結</span>
+      <button id="btn-eeg" class="indicator-btn" title="啟動腦波生物反饋模擬"></button>
+    </div>
+  </div>
+
+  <!-- 旋鈕 -->
+  <div style="display:flex;gap:40px;">
+    <div class="knob-wrap">
+      <span class="knob-label">混亂_模組</span>
+      <div class="knob" id="knob-chaos">
+        <div class="knob-needle" id="needle-chaos"></div>
+      </div>
+    </div>
+    <div class="knob-wrap">
+      <span class="knob-label">熵增_模組</span>
+      <div class="knob" id="knob-entropy">
+        <div class="knob-needle" id="needle-entropy"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- UID 顯示 -->
+<div id="uid-tag"></div>
+
+<!-- Google One Tap 容器 -->
+<div id="g_id_onload"
+  data-client_id=""
+  data-callback="handleGoogleOneTap"
+  data-auto_select="true"
+  data-cancel_on_tap_outside="false">
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  狀態
+// ══════════════════════════════════════════════════════════════
+let chaos   = 0.5;
+let entropy = 0.4;
+let eegActive = false;
+let currentUser = null;
+
+const state = {
+  targetX: innerWidth/2, targetY: innerHeight/2,
+  currentX: innerWidth/2, currentY: innerHeight/2,
+  lastSwitch: Date.now(), transition: 1, targetTransition: 1,
+  isInteracting: false, subMode: 0, modeCounter: 0, phasePair: 1,
+};
+
+// ══════════════════════════════════════════════════════════════
+//  Firebase 初始化
+// ══════════════════════════════════════════════════════════════
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+
+(async () => {
+  try { await auth.signInAnonymously(); }
+  catch(e) { console.error("Anonymous auth fail", e); }
+})();
+
+auth.onAuthStateChanged(user => {
+  currentUser = user;
+  const btn = document.getElementById('btn-google');
+  const tag = document.getElementById('uid-tag');
+  if (user && !user.isAnonymous) {
+    btn.classList.add('active-blue');
+    tag.style.display = 'block';
+    tag.textContent = '數據持續標記: ' + user.uid.substring(0,14).toUpperCase();
+  } else {
+    btn.classList.remove('active-blue');
+    tag.style.display = 'none';
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  Google One Tap 回呼（自動登入）
+// ══════════════════════════════════════════════════════════════
+window.handleGoogleOneTap = async (response) => {
+  const credential = firebase.auth.GoogleAuthProvider.credential(response.credential);
+  try { await auth.signInWithCredential(credential); }
+  catch(e) { console.warn("One Tap sign-in fail", e); }
+};
+
+// 手動 Google 登入（點指示燈）
+document.getElementById('btn-google').addEventListener('click', async () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try { await auth.signInWithPopup(provider); }
+  catch(e) { console.warn("Popup sign-in cancelled or blocked"); }
+});
+
+// 初始化 One Tap（傳入 client_id）
+window.addEventListener('load', () => {
+  const el = document.getElementById('g_id_onload');
+  el.setAttribute('data-client_id', GOOGLE_CLIENT_ID);
+  if (window.google?.accounts?.id) {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleOneTap,
+      auto_select: true,
+    });
+    google.accounts.id.prompt();
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  EEG 模擬
+// ══════════════════════════════════════════════════════════════
+let eegInterval = null;
+document.getElementById('btn-eeg').addEventListener('click', () => {
+  eegActive = !eegActive;
+  const btn = document.getElementById('btn-eeg');
+  if (eegActive) {
+    btn.classList.add('active-green');
+    console.log("正在尋找 EEG 腦波設備 (Web Bluetooth)...");
+    eegInterval = setInterval(() => {
+      entropy = Math.max(0.1, Math.min(1, entropy + (Math.random()-0.5)*0.15));
+      updateNeedle('needle-entropy', entropy);
+    }, 2000);
+  } else {
+    btn.classList.remove('active-green');
+    clearInterval(eegInterval);
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  旋鈕邏輯
+// ══════════════════════════════════════════════════════════════
+function updateNeedle(id, val) {
+  document.getElementById(id).style.transform = `rotate(${val*280-140}deg)`;
+}
+updateNeedle('needle-chaos',   chaos);
+updateNeedle('needle-entropy', entropy);
+
+function makeKnob(knobId, needleId, getter, setter) {
+  const knob = document.getElementById(knobId);
+  let dragging = false, lastY = 0;
+
+  const start = y => { dragging = true; lastY = y; knob.classList.add('dragging'); };
+  const move  = y => {
+    if (!dragging) return;
+    const delta = lastY - y;
+    const nv = Math.max(0, Math.min(1, getter() + delta * 0.008));
+    setter(nv);
+    updateNeedle(needleId, nv);
+    lastY = y;
+  };
+  const end = () => { dragging = false; knob.classList.remove('dragging'); };
+
+  knob.addEventListener('mousedown',  e => start(e.clientY));
+  knob.addEventListener('touchstart', e => start(e.touches[0].clientY), {passive:true});
+  window.addEventListener('mousemove',  e => move(e.clientY));
+  window.addEventListener('touchmove',  e => move(e.touches[0].clientY), {passive:true});
+  window.addEventListener('mouseup',  end);
+  window.addEventListener('touchend', end);
+}
+
+makeKnob('knob-chaos',   'needle-chaos',   () => chaos,   v => chaos   = v);
+makeKnob('knob-entropy', 'needle-entropy', () => entropy, v => entropy = v);
+
+// ══════════════════════════════════════════════════════════════
+//  Three.js 引擎
+// ══════════════════════════════════════════════════════════════
+const container    = document.getElementById('container');
+const video        = document.getElementById('video');
+const motionCanvas = document.getElementById('motion-canvas');
+const cursorEl     = document.getElementById('cursor-el');
+let prevFrame = null;
+
+// 鏡頭
+(async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width:640, height:480, facingMode:"user" }
+    });
+    video.srcObject = stream;
+    await video.play();
+  } catch(e) { console.error("Camera fail", e); }
+})();
+
+// Scene
+const scene    = new THREE.Scene();
+const camera   = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+camera.position.z = 110;
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+
+const videoTexture = new THREE.VideoTexture(video);
+
+// Shader 材質
+const shaderMat = new THREE.ShaderMaterial({
+  uniforms: {
+    tDiffuse:  { value: videoTexture },
+    phasePair: { value: 1 },
+    subMode:   { value: 0 },
+    time:      { value: 0 },
+    chaos:     { value: 0.5 },
+    transition:{ value: 1.0 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    uniform float time;
+    uniform float chaos;
+    void main() {
+      vUv = uv;
+      vec3 pos = position;
+      float wave = sin(time*(1.1+chaos*1.5)+(pos.x*0.06+pos.y*0.06))*(chaos*20.0);
+      pos.z += wave;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos,1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform int phasePair;
+    uniform int subMode;
+    uniform float time;
+    uniform float chaos;
+    uniform float transition;
+    varying vec2 vUv;
+    void main() {
+      vec2 uv = vUv;
+      if(chaos>0.1){
+        float d = distance(uv,vec2(0.5));
+        uv.x += sin(d*12.0-time*1.5)*0.025*chaos;
+        uv.y += cos(d*12.0-time*1.5)*0.025*chaos;
+      }
+      vec4 finalCol;
+      if(subMode==3) uv.x = abs(uv.x-0.5)+0.25;
+      if(subMode==4){
+        float size = 60.0-(chaos*50.0);
+        uv = floor(uv*size)/size;
+      }
+      if(subMode==5){
+        float shift = 0.03*chaos;
+        float r = texture2D(tDiffuse,uv+vec2(shift,0.0)).r;
+        float g = texture2D(tDiffuse,uv).g;
+        float b = texture2D(tDiffuse,uv-vec2(shift,0.0)).b;
+        finalCol = vec4(r,g,b,1.0);
+      } else {
+        finalCol = texture2D(tDiffuse,uv);
+      }
+      float luma = dot(finalCol.rgb,vec3(0.299,0.587,0.114));
+      if(subMode==0){
+        vec3 col = mix(vec3(0.05),vec3(0.7,0.85,1.0),luma);
+        if(luma>0.55) col = mix(col,vec3(1.0),(luma-0.55)*2.5);
+        finalCol = vec4(col,1.0);
+      } else if(subMode==1){
+        float edge = fwidth(luma)*(18.0+chaos*25.0);
+        finalCol = vec4(vec3(edge),1.0);
+      } else if(subMode==2){
+        finalCol.rgb = vec3(1.0)-finalCol.rgb;
+        finalCol.rgb *= vec3(0.9,0.95,1.0);
+      }
+      gl_FragColor = finalCol*transition;
+    }
+  `,
+  transparent: true
+});
+
+// 背景平面
+const mesh = new THREE.Mesh(
+  new THREE.PlaneBufferGeometry(235, 175, 128, 128),
+  shaderMat
+);
+scene.add(mesh);
+
+// 粒子幾何群
+const particles = new THREE.Group();
+const cols=15, rows=12, pw=230/cols, ph=170/rows;
+const geos = [
+  new THREE.TorusKnotBufferGeometry(pw/3.6,0.1,32,8),
+  new THREE.OctahedronBufferGeometry(pw/2.1,1),
+  new THREE.CylinderBufferGeometry(pw/4.5,pw/4.5,ph*0.8,8,1),
+  new THREE.SphereBufferGeometry(pw/2.2,16,12),
+];
+for(let i=0;i<cols;i++) for(let j=0;j<rows;j++){
+  const p = new THREE.Mesh(
+    geos[Math.floor(Math.random()*geos.length)],
+    new THREE.MeshBasicMaterial({ map:videoTexture, transparent:true, opacity:0.92, color:0xFFFFFF })
+  );
+  p.position.set(i*pw-115+pw/2, j*ph-85+ph/2, (Math.random()-.5)*20);
+  p.userData = { origin:p.position.clone(), v:new THREE.Vector3(), noise:Math.random()*100 };
+  particles.add(p);
+}
+scene.add(particles);
+
+// 液態連線
+const liquidWeb = new THREE.LineSegments(
+  new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({ color:0xFFFFFF, transparent:true, opacity:0.22 })
+);
+scene.add(liquidWeb);
+
+// ── 動態偵測 ─────────────────────────────────────────────────
+function updateTracking() {
+  if (state.isInteracting) return;
+  if (!video || video.readyState < 2) return;
+  const ctx = motionCanvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, motionCanvas.width, motionCanvas.height);
+  const curr = ctx.getImageData(0, 0, motionCanvas.width, motionCanvas.height);
+  if (prevFrame) {
+    let tx=0,ty=0,count=0;
+    for(let i=0;i<curr.data.length;i+=4){
+      const diff=(Math.abs(curr.data[i]-prevFrame.data[i])+
+                  Math.abs(curr.data[i+1]-prevFrame.data[i+1])+
+                  Math.abs(curr.data[i+2]-prevFrame.data[i+2]))/3;
+      if(diff>26){
+        const idx=i/4;
+        tx+=idx%motionCanvas.width;
+        ty+=Math.floor(idx/motionCanvas.width);
+        count++;
+      }
+    }
+    if(count>25){
+      let nx=1.0-(tx/count/motionCanvas.width);
+      nx=Math.max(0,Math.min(1,(nx-0.05)/0.9));
+      state.targetX=nx*innerWidth;
+      state.targetY=(ty/count/motionCanvas.height)*innerHeight;
+      cursorEl.classList.add('detecting');
     } else {
-      setEegActive(false);
+      cursorEl.classList.remove('detecting');
     }
-  };
+  }
+  if(!prevFrame) prevFrame=new ImageData(curr.width,curr.height);
+  prevFrame.data.set(curr.data);
+}
 
-  useEffect(() => {
-    let interval;
-    if (eegActive) {
-      interval = setInterval(() => {
-        // 模擬腦波專注度對 Entropy 的動態干擾
-        setEntropy(prev => Math.max(0.1, Math.min(1, prev + (Math.random() - 0.5) * 0.15)));
-      }, 2000);
+// ── 動畫迴圈 ─────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  const time = Date.now()*0.001;
+
+  shaderMat.uniforms.time.value   = time;
+  shaderMat.uniforms.chaos.value  = chaos;
+  state.transition += (state.targetTransition - state.transition)*0.12;
+  shaderMat.uniforms.transition.value = state.transition;
+
+  updateTracking();
+
+  state.currentX += (state.targetX - state.currentX)*0.22;
+  state.currentY += (state.targetY - state.currentY)*0.22;
+  cursorEl.style.left = state.currentX+'px';
+  cursorEl.style.top  = state.currentY+'px';
+
+  // 模式切換
+  const cycleTime = 8000/(0.35+entropy*1.6);
+  if(Date.now()-state.lastSwitch > cycleTime){
+    state.targetTransition = 0.1;
+    setTimeout(()=>{
+      state.modeCounter=(state.modeCounter+1)%6;
+      state.subMode=state.modeCounter;
+      state.phasePair=Math.floor(Math.random()*3)+1;
+      shaderMat.uniforms.subMode.value   = state.subMode;
+      shaderMat.uniforms.phasePair.value = state.phasePair;
+      mesh.visible      = (state.phasePair===1||state.phasePair===3);
+      particles.visible = (state.phasePair===2||state.phasePair===3);
+      state.targetTransition=1.0;
+    }, 400);
+    state.lastSwitch=Date.now();
+  }
+
+  const wm = new THREE.Vector3(
+    ((state.currentX/innerWidth)*2-1)*115,
+    -((state.currentY/innerHeight)*2-1)*85, 10
+  );
+
+  // 背景平面頂點抖動
+  if(mesh.visible){
+    const arr=mesh.geometry.attributes.position.array;
+    for(let i=0;i<arr.length;i+=3){
+      const vx=arr[i],vy=arr[i+1];
+      const dist=Math.sqrt((vx-wm.x)**2+(vy-wm.y)**2);
+      let z=Math.sin(time*1.2+(vx+vy)*0.04)*(4.5+chaos*8.0);
+      if(dist<100) z+=(100-dist)*(0.6+chaos*1.8);
+      arr[i+2]=z;
     }
-    return () => clearInterval(interval);
-  }, [eegActive]);
+    mesh.geometry.attributes.position.needsUpdate=true;
+  }
 
-  // -----------------------------------------------------------------------
-  // Three.js 核心引擎
-  // -----------------------------------------------------------------------
-  useEffect(() => {
-    let prevFrame = null;
-    let animationId;
-
-    const initEngine = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { width: 640, height: 480, facingMode: "user" } 
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-      } catch (e) { console.error("Camera fail", e); }
-
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.z = 110;
-
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      containerRef.current.appendChild(renderer.domElement);
-
-      const videoTexture = new THREE.VideoTexture(videoRef.current);
-
-      const shaderMat = new THREE.ShaderMaterial({
-        uniforms: {
-          tDiffuse: { value: videoTexture },
-          phasePair: { value: 1 }, subMode: { value: 0 },
-          time: { value: 0 }, chaos: { value: 0.5 }, transition: { value: 1.0 }
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          uniform float time;
-          uniform float chaos;
-          void main() {
-            vUv = uv;
-            vec3 pos = position;
-            float wave = sin(time * (1.1 + chaos * 1.5) + (pos.x * 0.06 + pos.y * 0.06)) * (chaos * 20.0);
-            pos.z += wave;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform sampler2D tDiffuse;
-          uniform int phasePair;
-          uniform int subMode;
-          uniform float time;
-          uniform float chaos;
-          uniform float transition;
-          varying vec2 vUv;
-
-          void main() {
-            vec2 uv = vUv;
-            if(chaos > 0.1) {
-              float d = distance(uv, vec2(0.5));
-              uv.x += sin(d * 12.0 - time * 1.5) * 0.025 * chaos;
-              uv.y += cos(d * 12.0 - time * 1.5) * 0.025 * chaos;
-            }
-            vec4 finalCol;
-            if (subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25;
-            if (subMode == 4) {
-                float size = 60.0 - (chaos * 50.0);
-                uv = floor(uv * size) / size;
-            }
-            if (subMode == 5) {
-              float shift = 0.03 * chaos;
-              float r = texture2D(tDiffuse, uv + vec2(shift, 0.0)).r;
-              float g = texture2D(tDiffuse, uv).g;
-              float b = texture2D(tDiffuse, uv - vec2(shift, 0.0)).b;
-              finalCol = vec4(r, g, b, 1.0);
-            } else {
-              finalCol = texture2D(tDiffuse, uv);
-            }
-            float luma = dot(finalCol.rgb, vec3(0.299, 0.587, 0.114));
-            if (subMode == 0) {
-              vec3 col = mix(vec3(0.05), vec3(0.7, 0.85, 1.0), luma);
-              if(luma > 0.55) col = mix(col, vec3(1.0), (luma-0.55)*2.5);
-              finalCol = vec4(col, 1.0);
-            } else if (subMode == 1) {
-              float edge = fwidth(luma) * (18.0 + chaos * 25.0);
-              finalCol = vec4(vec3(edge), 1.0);
-            } else if (subMode == 2) {
-              finalCol.rgb = vec3(1.0) - finalCol.rgb;
-              finalCol.rgb *= vec3(0.9, 0.95, 1.0);
-            }
-            gl_FragColor = finalCol * transition;
-          }
-        `,
-        transparent: true
-      });
-
-      const mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(235, 175, 128, 128), shaderMat);
-      scene.add(mesh);
-
-      const particles = new THREE.Group();
-      const cols = 15, rows = 12;
-      const w = 230/cols, h = 170/rows;
-      const geometries = [
-        new THREE.TorusKnotBufferGeometry(w/3.6, 0.1, 32, 8),
-        new THREE.OctahedronBufferGeometry(w/2.1, 1),
-        new THREE.CylinderBufferGeometry(w/4.5, w/4.5, h*0.8, 8, 1),
-        new THREE.SphereBufferGeometry(w/2.2, 16, 12)
-      ];
-      for(let i=0; i<cols; i++) {
-        for(let j=0; j<rows; j++) {
-          const geo = geometries[Math.floor(Math.random()*geometries.length)];
-          const p = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: videoTexture, transparent: true, opacity: 0.92, color: 0xFFFFFF }));
-          p.position.set(i*w-115+w/2, j*h-85+h/2, (Math.random()-0.5)*20);
-          p.userData = { origin: p.position.clone(), v: new THREE.Vector3(), noise: Math.random()*100 };
-          particles.add(p);
-        }
+  // 幾何粒子物理
+  if(particles.visible){
+    const pts=[];
+    particles.children.forEach(p=>{
+      const ud=p.userData;
+      let target=ud.origin.clone();
+      const t=time*(0.35+chaos*1.3);
+      target.x+=Math.sin(t+ud.noise)*(42*chaos);
+      target.y+=Math.cos(t*0.85+ud.noise)*(42*chaos);
+      const dist=p.position.distanceTo(wm);
+      if(dist<88){
+        const f=(1.0-dist/88)*(3.5+chaos*9.0);
+        ud.v.add(new THREE.Vector3().subVectors(p.position,wm).normalize().multiplyScalar(f));
+        if(Math.random()>0.45) pts.push(p.position.x,p.position.y,p.position.z,wm.x,wm.y,wm.z);
       }
-      scene.add(particles);
+      ud.v.add(new THREE.Vector3().subVectors(target,p.position).multiplyScalar(0.025));
+      ud.v.multiplyScalar(0.86-chaos*0.12);
+      p.position.add(ud.v);
+      p.rotation.x+=ud.v.length()*0.07;
+    });
+    liquidWeb.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+    liquidWeb.geometry.attributes.position.needsUpdate=true;
+  }
 
-      const liquidWeb = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.22 }));
-      scene.add(liquidWeb);
+  renderer.render(scene,camera);
+}
+animate();
 
-      engineRef.current = { scene, camera, renderer, shaderMat, mesh, particles, liquidWeb };
-      animate();
-    };
+// ── resize ───────────────────────────────────────────────────
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
 
-    const animate = () => {
-      animationId = requestAnimationFrame(animate);
-      const { scene, camera, renderer, shaderMat, mesh, particles, liquidWeb } = engineRef.current;
-      if (!scene || !camera || !renderer) return;
-
-      const time = Date.now() * 0.001;
-      const s = stateRef.current;
-
-      shaderMat.uniforms.time.value = time;
-      shaderMat.uniforms.chaos.value = s.chaos;
-      s.transition += (s.targetTransition - s.transition) * 0.12;
-      shaderMat.uniforms.transition.value = s.transition;
-
-      updateTracking();
-
-      s.currentX += (s.targetX - s.currentX) * 0.22;
-      s.currentY += (s.targetY - s.currentY) * 0.22;
-      if (cursorRef.current) {
-        cursorRef.current.style.left = `${s.currentX}px`;
-        cursorRef.current.style.top = `${s.currentY}px`;
-      }
-
-      // 特效模式順序循環
-      const cycleTime = 8000 / (0.35 + s.entropy * 1.6);
-      if (Date.now() - s.lastSwitch > cycleTime) {
-        s.targetTransition = 0.1;
-        setTimeout(() => {
-            s.modeCounter = (s.modeCounter + 1) % 6;
-            s.subMode = s.modeCounter;
-            s.phasePair = Math.floor(Math.random() * 3) + 1;
-            shaderMat.uniforms.subMode.value = s.subMode;
-            shaderMat.uniforms.phasePair.value = s.phasePair;
-            mesh.visible = (s.phasePair === 1 || s.phasePair === 3);
-            particles.visible = (s.phasePair === 2 || s.phasePair === 3);
-            s.targetTransition = 1.0;
-        }, 400);
-        s.lastSwitch = Date.now();
-      }
-
-      const wm = new THREE.Vector3(((s.currentX / window.innerWidth) * 2 - 1) * 115, -((s.currentY / window.innerHeight) * 2 - 1) * 85, 10);
-
-      // 背景平面「抖動呼應」
-      if (mesh.visible) {
-        const posArr = mesh.geometry.attributes.position.array;
-        for (let i = 0; i < posArr.length; i += 3) {
-          const vx = posArr[i], vy = posArr[i+1];
-          const dist = Math.sqrt((vx - wm.x)**2 + (vy - wm.y)**2);
-          let z = Math.sin(time * 1.2 + (vx + vy) * 0.04) * (4.5 + s.chaos * 8.0);
-          if (dist < 100) z += (100 - dist) * (0.6 + s.chaos * 1.8); 
-          posArr[i+2] = z;
-        }
-        mesh.geometry.attributes.position.needsUpdate = true;
-      }
-
-      // 幾何體物理互動
-      if (particles.visible) {
-        const points = [];
-        particles.children.forEach(p => {
-          const ud = p.userData;
-          let target = ud.origin.clone();
-          const t = time * (0.35 + s.chaos * 1.3);
-          target.x += Math.sin(t + ud.noise) * (42 * s.chaos);
-          target.y += Math.cos(t * 0.85 + ud.noise) * (42 * s.chaos);
-          const dist = p.position.distanceTo(wm);
-          if (dist < 88) {
-            const f = (1.0 - dist/88) * (3.5 + s.chaos * 9.0);
-            ud.v.add(new THREE.Vector3().subVectors(p.position, wm).normalize().multiplyScalar(f));
-            if(Math.random() > 0.45) points.push(p.position.x, p.position.y, p.position.z, wm.x, wm.y, wm.z);
-          }
-          ud.v.add(new THREE.Vector3().subVectors(target, p.position).multiplyScalar(0.025));
-          ud.v.multiplyScalar(0.86 - s.chaos * 0.12);
-          p.position.add(ud.v);
-          p.rotation.x += ud.v.length() * 0.07;
-        });
-        liquidWeb.geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-        liquidWeb.geometry.attributes.position.needsUpdate = true;
-      }
-
-      renderer.render(scene, camera);
-    };
-
-    const updateTracking = () => {
-      if (stateRef.current.isInteracting) return;
-      const v = videoRef.current;
-      const canvas = motionCanvasRef.current;
-      if (!v || v.readyState < 2) return;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-      const currFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      if (prevFrame) {
-        let tx = 0, ty = 0, count = 0;
-        for (let i = 0; i < currFrame.data.length; i += 4) {
-          const diff = (Math.abs(currFrame.data[i] - prevFrame.data[i]) + Math.abs(currFrame.data[i+1] - prevFrame.data[i+1]) + Math.abs(currFrame.data[i+2] - prevFrame.data[i+2])) / 3;
-          if (diff > 26) {
-            const idx = i / 4;
-            tx += idx % canvas.width;
-            ty += Math.floor(idx / canvas.width);
-            count++;
-          }
-        }
-        if (count > 25) {
-          let nx = 1.0 - (tx / count / canvas.width);
-          nx = Math.max(0, Math.min(1, (nx - 0.05) / 0.9));
-          stateRef.current.targetX = nx * window.innerWidth;
-          stateRef.current.targetY = (ty / count / canvas.height) * window.innerHeight;
-          if (cursorRef.current) cursorRef.current.classList.add('detecting');
-        } else {
-          if (cursorRef.current) cursorRef.current.classList.remove('detecting');
-        }
-      }
-      if (!prevFrame) prevFrame = new ImageData(currFrame.width, currFrame.height);
-      prevFrame.data.set(currFrame.data);
-    };
-
-    initEngine();
-
-    const handleResize = () => {
-      const { camera, renderer } = engineRef.current;
-      if (camera && renderer) {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      }
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener('resize', handleResize);
-      if (engineRef.current.renderer) engineRef.current.renderer.dispose();
-      if (containerRef.current) containerRef.current.innerHTML = '';
-    };
-  }, []);
-
-  const handleInteraction = (e) => {
-    stateRef.current.isInteracting = true;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    stateRef.current.targetX = clientX;
-    stateRef.current.targetY = clientY;
-  };
-
-  return (
-    <div className="relative w-screen h-screen bg-black overflow-hidden font-mono text-white select-none">
-      {/* CRT 掃描線層 */}
-      <div className="pointer-events-none absolute inset-0 z-40" style={{
-        background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(255, 255, 255, 0.02) 50%), linear-gradient(90deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.01))',
-        backgroundSize: '100% 3px, 3px 100%'
-      }}></div>
-
-      {/* 感應游標 */}
-      <div 
-        ref={cursorRef}
-        className="fixed w-12 h-12 border border-red-500 rounded-full z-[100] pointer-events-none -translate-x-1/2 -translate-y-1/2 mix-blend-screen transition-[width,height,border-color] duration-300"
-        id="cursor-el"
-      ></div>
-
-      {/* 渲染容器 */}
-      <div 
-        ref={containerRef} 
-        className="w-full h-full cursor-none"
-        onMouseDown={handleInteraction}
-        onMouseMove={(e) => e.buttons > 0 && handleInteraction(e)}
-        onMouseUp={() => stateRef.current.isInteracting = false}
-        onTouchStart={handleInteraction}
-        onTouchMove={handleInteraction}
-        onTouchEnd={() => stateRef.current.isInteracting = false}
-      ></div>
-
-      <video ref={videoRef} className="hidden" playsInline muted autoPlay />
-      <canvas ref={motionCanvasRef} width="100" height="75" className="absolute bottom-5 left-5 opacity-20 border border-white/10 z-50 pointer-events-none" />
-
-      {/* 互動按鈕區 */}
-      <div className="absolute right-10 bottom-10 flex flex-col items-end gap-6 z-50">
-        
-        {/* API & EEG 指示燈 */}
-        <div className="flex gap-5 mb-2">
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-[7px] text-white/30 tracking-[0.25em]">驗證_API</span>
-            <button 
-              onClick={handleGoogleLogin}
-              className={`w-4 h-4 rounded-full transition-all duration-700 ${user && !user.isAnonymous ? 'bg-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.9)]' : 'bg-white/5 border border-white/20'}`}
-              title="連結 Google 帳號實作數據持久化"
-            />
-          </div>
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-[7px] text-white/30 tracking-[0.25em]">腦波_連結</span>
-            <button 
-              onClick={toggleEEG}
-              className={`w-4 h-4 rounded-full transition-all duration-700 ${eegActive ? 'bg-green-400 shadow-[0_0_15px_rgba(74,222,128,0.9)] animate-pulse' : 'bg-white/5 border border-white/20'}`}
-              title="啟動腦波生物反饋模擬"
-            />
-          </div>
-        </div>
-
-        {/* 旋鈕 */}
-        <div className="flex gap-10">
-           <KnobControl label="混亂" value={chaos} onChange={setChaos} />
-           <KnobControl label="熵增" value={entropy} onChange={setEntropy} />
-        </div>
-      </div>
-
-      {/* 狀態標記 */}
-      {user && !user.isAnonymous && (
-        <div className="absolute top-6 right-8 text-[9px] text-blue-400/70 tracking-[0.2em]">
-          數據持續標記: {user.uid.substring(0, 14).toUpperCase()}
-        </div>
-      )}
-
-      <style>{`
-        #cursor-el.detecting {
-          width: 65px; height: 65px; border-width: 3px; border-color: white; box-shadow: 0 0 25px rgba(255,255,255,0.5);
-        }
-      `}</style>
-    </div>
-  );
-};
-
-// 旋鈕組件
-const KnobControl = ({ label, value, onChange }) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const lastY = useRef(0);
-
-  const start = (y) => { setIsDragging(true); lastY.current = y; };
-  const move = (y) => {
-    if (!isDragging) return;
-    const delta = lastY.current - y;
-    onChange(Math.max(0, Math.min(1, value + delta * 0.008)));
-    lastY.current = y;
-  };
-
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="text-[9px] text-white/40 tracking-[0.15em]">{label}_模組</div>
-      <div 
-        className={`w-16 h-16 rounded-full border transition-all duration-300 flex items-center justify-center relative bg-gradient-to-b from-white/10 to-transparent ${isDragging ? 'border-white/70 scale-105 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'border-white/20'}`}
-        onMouseDown={(e) => start(e.clientY)}
-        onTouchStart={(e) => start(e.touches[0].clientY)}
-        onMouseMove={(e) => move(e.clientY)}
-        onTouchMove={(e) => move(e.touches[0].clientY)}
-        onMouseUp={() => setIsDragging(false)}
-        onTouchEnd={() => setIsDragging(false)}
-        onMouseLeave={() => setIsDragging(false)}
-      >
-        <div 
-          className="absolute w-0.5 h-[42%] bg-white/90 shadow-[0_0_10px_rgba(255,255,255,0.6)] origin-bottom bottom-1/2"
-          style={{ transform: `rotate(${value * 280 - 140}deg)` }}
-        />
-      </div>
-    </div>
-  );
-};
-
-export default App;
+// ── 互動事件 ─────────────────────────────────────────────────
+function onInteract(cx,cy){
+  state.isInteracting=true;
+  state.targetX=cx; state.targetY=cy;
+}
+container.addEventListener('mousedown', e=>onInteract(e.clientX,e.clientY));
+container.addEventListener('mousemove', e=>{ if(e.buttons>0) onInteract(e.clientX,e.clientY); });
+container.addEventListener('mouseup',   ()=>state.isInteracting=false);
+container.addEventListener('touchstart',e=>onInteract(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+container.addEventListener('touchmove', e=>onInteract(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+container.addEventListener('touchend',  ()=>state.isInteracting=false);
+</script>
+</body>
+</html>
