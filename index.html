@@ -19,12 +19,17 @@ const App = () => {
   const [chaos, setChaos] = useState(0.5);
   const [entropy, setEntropy] = useState(0.4);
   
-  // Refs 用於存取 DOM 與實時狀態 (避免 React Re-render 導致 3D 重啟)
+  // DOM 與 引擎 Refs
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const motionCanvasRef = useRef(null);
   const cursorRef = useRef(null);
   
+  const engineRef = useRef({
+    scene: null, camera: null, renderer: null, shaderMat: null,
+    mesh: null, particles: null, liquidWeb: null
+  });
+
   const stateRef = useRef({ 
     targetX: window.innerWidth / 2, targetY: window.innerHeight / 2,
     currentX: window.innerWidth / 2, currentY: window.innerHeight / 2,
@@ -33,7 +38,7 @@ const App = () => {
     chaos: 0.5, entropy: 0.4, eegActive: false
   });
 
-  // 同步 React 狀態到 Ref，供 Three.js 迴圈使用
+  // 同步 React 狀態至動畫迴圈
   useEffect(() => {
     stateRef.current.chaos = chaos;
     stateRef.current.entropy = entropy;
@@ -41,15 +46,17 @@ const App = () => {
   }, [chaos, entropy, eegActive]);
 
   // -----------------------------------------------------------------------
-  // Firebase Auth (遵循 RULE 3)
+  // API 功能：Google 登入 (實作數據持久化基礎)
   // -----------------------------------------------------------------------
   useEffect(() => {
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (e) { console.error("Auth Init Fail", e); }
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -59,55 +66,67 @@ const App = () => {
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
+      // 真正喚起 Google API
       await signInWithPopup(auth, provider);
-    } catch (e) { console.error("Login Error", e); }
+    } catch (e) {
+      console.warn("登入被取消或網域未授權");
+    }
   };
 
   // -----------------------------------------------------------------------
-  // EEG 模擬邏輯
+  // EEG 功能：預留藍牙連接邏輯
   // -----------------------------------------------------------------------
+  const toggleEEG = async () => {
+    if (!eegActive) {
+      // 未來實作：navigator.bluetooth.requestDevice(...)
+      console.log("正在尋找 EEG 腦波設備 (Web Bluetooth)...");
+      setEegActive(true);
+    } else {
+      setEegActive(false);
+    }
+  };
+
   useEffect(() => {
     let interval;
     if (eegActive) {
       interval = setInterval(() => {
-        setEntropy(prev => Math.max(0.1, Math.min(1, prev + (Math.random() - 0.5) * 0.12)));
-      }, 2500);
+        // 模擬腦波專注度對 Entropy 的動態干擾
+        setEntropy(prev => Math.max(0.1, Math.min(1, prev + (Math.random() - 0.5) * 0.15)));
+      }, 2000);
     }
     return () => clearInterval(interval);
   }, [eegActive]);
 
   // -----------------------------------------------------------------------
-  // Three.js 核心與動態呼應邏輯
+  // Three.js 核心引擎
   // -----------------------------------------------------------------------
   useEffect(() => {
-    let scene, camera, renderer, videoTexture, mesh, particles, liquidWeb, shaderMat;
     let prevFrame = null;
     let animationId;
 
     const initEngine = async () => {
-      // 1. 攝影機
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } });
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { width: 640, height: 480, facingMode: "user" } 
+        });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
       } catch (e) { console.error("Camera fail", e); }
 
-      // 2. 場景
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.z = 110;
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       containerRef.current.appendChild(renderer.domElement);
 
-      videoTexture = new THREE.VideoTexture(videoRef.current);
+      const videoTexture = new THREE.VideoTexture(videoRef.current);
 
-      // 3. 著色器 (包含背景變形與所有特效模式)
-      shaderMat = new THREE.ShaderMaterial({
+      const shaderMat = new THREE.ShaderMaterial({
         uniforms: {
           tDiffuse: { value: videoTexture },
           phasePair: { value: 1 }, subMode: { value: 0 },
@@ -120,7 +139,6 @@ const App = () => {
           void main() {
             vUv = uv;
             vec3 pos = position;
-            // 基礎波浪
             float wave = sin(time * (1.1 + chaos * 1.5) + (pos.x * 0.06 + pos.y * 0.06)) * (chaos * 20.0);
             pos.z += wave;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
@@ -137,24 +155,18 @@ const App = () => {
 
           void main() {
             vec2 uv = vUv;
-            
-            // Chaos 扭曲
             if(chaos > 0.1) {
               float d = distance(uv, vec2(0.5));
               uv.x += sin(d * 12.0 - time * 1.5) * 0.025 * chaos;
               uv.y += cos(d * 12.0 - time * 1.5) * 0.025 * chaos;
             }
-
             vec4 finalCol;
-            
-            // 模式邏輯
-            if (subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25; // Mirror
-            if (subMode == 4) { // Mosaic
+            if (subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25;
+            if (subMode == 4) {
                 float size = 60.0 - (chaos * 50.0);
                 uv = floor(uv * size) / size;
             }
-            
-            if (subMode == 5) { // Glitch
+            if (subMode == 5) {
               float shift = 0.03 * chaos;
               float r = texture2D(tDiffuse, uv + vec2(shift, 0.0)).r;
               float g = texture2D(tDiffuse, uv).g;
@@ -163,33 +175,28 @@ const App = () => {
             } else {
               finalCol = texture2D(tDiffuse, uv);
             }
-
             float luma = dot(finalCol.rgb, vec3(0.299, 0.587, 0.114));
-
-            if (subMode == 0) { // White Thermal
+            if (subMode == 0) {
               vec3 col = mix(vec3(0.05), vec3(0.7, 0.85, 1.0), luma);
               if(luma > 0.55) col = mix(col, vec3(1.0), (luma-0.55)*2.5);
               finalCol = vec4(col, 1.0);
-            } else if (subMode == 1) { // Edges
+            } else if (subMode == 1) {
               float edge = fwidth(luma) * (18.0 + chaos * 25.0);
               finalCol = vec4(vec3(edge), 1.0);
-            } else if (subMode == 2) { // Negative
+            } else if (subMode == 2) {
               finalCol.rgb = vec3(1.0) - finalCol.rgb;
               finalCol.rgb *= vec3(0.9, 0.95, 1.0);
             }
-
             gl_FragColor = finalCol * transition;
           }
         `,
         transparent: true
       });
 
-      // 背景平面 (增加分段數以利平滑變形)
-      mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(235, 175, 128, 128), shaderMat);
+      const mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(235, 175, 128, 128), shaderMat);
       scene.add(mesh);
 
-      // 粒子
-      particles = new THREE.Group();
+      const particles = new THREE.Group();
       const cols = 15, rows = 12;
       const w = 230/cols, h = 170/rows;
       const geometries = [
@@ -209,18 +216,21 @@ const App = () => {
       }
       scene.add(particles);
 
-      liquidWeb = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.22 }));
+      const liquidWeb = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.22 }));
       scene.add(liquidWeb);
 
+      engineRef.current = { scene, camera, renderer, shaderMat, mesh, particles, liquidWeb };
       animate();
     };
 
     const animate = () => {
       animationId = requestAnimationFrame(animate);
+      const { scene, camera, renderer, shaderMat, mesh, particles, liquidWeb } = engineRef.current;
+      if (!scene || !camera || !renderer) return;
+
       const time = Date.now() * 0.001;
       const s = stateRef.current;
 
-      // 更新材質與平滑過渡
       shaderMat.uniforms.time.value = time;
       shaderMat.uniforms.chaos.value = s.chaos;
       s.transition += (s.targetTransition - s.transition) * 0.12;
@@ -228,7 +238,6 @@ const App = () => {
 
       updateTracking();
 
-      // 平滑座標映射
       s.currentX += (s.targetX - s.currentX) * 0.22;
       s.currentY += (s.targetY - s.currentY) * 0.22;
       if (cursorRef.current) {
@@ -236,10 +245,10 @@ const App = () => {
         cursorRef.current.style.top = `${s.currentY}px`;
       }
 
-      // 特效循環邏輯
+      // 特效模式順序循環
       const cycleTime = 8000 / (0.35 + s.entropy * 1.6);
       if (Date.now() - s.lastSwitch > cycleTime) {
-        s.targetTransition = 0.1; // 先淡出
+        s.targetTransition = 0.1;
         setTimeout(() => {
             s.modeCounter = (s.modeCounter + 1) % 6;
             s.subMode = s.modeCounter;
@@ -248,20 +257,19 @@ const App = () => {
             shaderMat.uniforms.phasePair.value = s.phasePair;
             mesh.visible = (s.phasePair === 1 || s.phasePair === 3);
             particles.visible = (s.phasePair === 2 || s.phasePair === 3);
-            s.targetTransition = 1.0; // 再淡入
+            s.targetTransition = 1.0;
         }, 400);
         s.lastSwitch = Date.now();
       }
 
       const wm = new THREE.Vector3(((s.currentX / window.innerWidth) * 2 - 1) * 115, -((s.currentY / window.innerHeight) * 2 - 1) * 85, 10);
 
-      // --- 復原：背景平面與立體的「抖動呼應」 ---
+      // 背景平面「抖動呼應」
       if (mesh.visible) {
         const posArr = mesh.geometry.attributes.position.array;
         for (let i = 0; i < posArr.length; i += 3) {
           const vx = posArr[i], vy = posArr[i+1];
           const dist = Math.sqrt((vx - wm.x)**2 + (vy - wm.y)**2);
-          // 基礎正弦波 + 感應點引起的 Z 軸抖動
           let z = Math.sin(time * 1.2 + (vx + vy) * 0.04) * (4.5 + s.chaos * 8.0);
           if (dist < 100) z += (100 - dist) * (0.6 + s.chaos * 1.8); 
           posArr[i+2] = z;
@@ -269,7 +277,7 @@ const App = () => {
         mesh.geometry.attributes.position.needsUpdate = true;
       }
 
-      // 粒子物理交互
+      // 幾何體物理互動
       if (particles.visible) {
         const points = [];
         particles.children.forEach(p => {
@@ -278,7 +286,6 @@ const App = () => {
           const t = time * (0.35 + s.chaos * 1.3);
           target.x += Math.sin(t + ud.noise) * (42 * s.chaos);
           target.y += Math.cos(t * 0.85 + ud.noise) * (42 * s.chaos);
-          
           const dist = p.position.distanceTo(wm);
           if (dist < 88) {
             const f = (1.0 - dist/88) * (3.5 + s.chaos * 9.0);
@@ -333,23 +340,23 @@ const App = () => {
     initEngine();
 
     const handleResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      const { camera, renderer } = engineRef.current;
+      if (camera && renderer) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
     };
     window.addEventListener('resize', handleResize);
 
     return () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', handleResize);
-      renderer.dispose();
-      if(containerRef.current) containerRef.current.innerHTML = '';
+      if (engineRef.current.renderer) engineRef.current.renderer.dispose();
+      if (containerRef.current) containerRef.current.innerHTML = '';
     };
-  }, []); // 空依賴項，由 Ref 維持狀態更新
+  }, []);
 
-  // -----------------------------------------------------------------------
-  // UI 互動處理
-  // -----------------------------------------------------------------------
   const handleInteraction = (e) => {
     stateRef.current.isInteracting = true;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -360,20 +367,20 @@ const App = () => {
 
   return (
     <div className="relative w-screen h-screen bg-black overflow-hidden font-mono text-white select-none">
-      {/* CRT 濾鏡層 */}
+      {/* CRT 掃描線層 */}
       <div className="pointer-events-none absolute inset-0 z-40" style={{
         background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(255, 255, 255, 0.02) 50%), linear-gradient(90deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.01))',
         backgroundSize: '100% 3px, 3px 100%'
       }}></div>
 
-      {/* 紅圈游標 */}
+      {/* 感應游標 */}
       <div 
         ref={cursorRef}
         className="fixed w-12 h-12 border border-red-500 rounded-full z-[100] pointer-events-none -translate-x-1/2 -translate-y-1/2 mix-blend-screen transition-[width,height,border-color] duration-300"
         id="cursor-el"
       ></div>
 
-      {/* 主視窗 */}
+      {/* 渲染容器 */}
       <div 
         ref={containerRef} 
         className="w-full h-full cursor-none"
@@ -388,40 +395,40 @@ const App = () => {
       <video ref={videoRef} className="hidden" playsInline muted autoPlay />
       <canvas ref={motionCanvasRef} width="100" height="75" className="absolute bottom-5 left-5 opacity-20 border border-white/10 z-50 pointer-events-none" />
 
-      {/* 介面群組 */}
+      {/* 互動按鈕區 */}
       <div className="absolute right-10 bottom-10 flex flex-col items-end gap-6 z-50">
         
-        {/* API & EEG 小型指示燈按鈕 */}
+        {/* API & EEG 指示燈 */}
         <div className="flex gap-5 mb-2">
           <div className="flex flex-col items-center gap-1.5">
-            <span className="text-[7px] text-white/30 tracking-[0.25em]">AUTH_API</span>
+            <span className="text-[7px] text-white/30 tracking-[0.25em]">驗證_API</span>
             <button 
               onClick={handleGoogleLogin}
               className={`w-4 h-4 rounded-full transition-all duration-700 ${user && !user.isAnonymous ? 'bg-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.9)]' : 'bg-white/5 border border-white/20'}`}
-              title="Link Google Account"
+              title="連結 Google 帳號實作數據持久化"
             />
           </div>
           <div className="flex flex-col items-center gap-1.5">
-            <span className="text-[7px] text-white/30 tracking-[0.25em]">EEG_LINK</span>
+            <span className="text-[7px] text-white/30 tracking-[0.25em]">腦波_連結</span>
             <button 
-              onClick={() => setEegActive(!eegActive)}
+              onClick={toggleEEG}
               className={`w-4 h-4 rounded-full transition-all duration-700 ${eegActive ? 'bg-green-400 shadow-[0_0_15px_rgba(74,222,128,0.9)] animate-pulse' : 'bg-white/5 border border-white/20'}`}
-              title="Simulate EEG Bio-feedback"
+              title="啟動腦波生物反饋模擬"
             />
           </div>
         </div>
 
-        {/* 雙旋鈕組件 */}
+        {/* 旋鈕 */}
         <div className="flex gap-10">
-           <KnobControl label="CHAOS" value={chaos} onChange={setChaos} />
-           <KnobControl label="ENTROPY" value={entropy} onChange={setEntropy} />
+           <KnobControl label="混亂" value={chaos} onChange={setChaos} />
+           <KnobControl label="熵增" value={entropy} onChange={setEntropy} />
         </div>
       </div>
 
-      {/* 使用者識別資訊 */}
+      {/* 狀態標記 */}
       {user && !user.isAnonymous && (
         <div className="absolute top-6 right-8 text-[9px] text-blue-400/70 tracking-[0.2em]">
-          DATA_PERSISTENCE_ID: {user.uid.substring(0, 14).toUpperCase()}
+          數據持續標記: {user.uid.substring(0, 14).toUpperCase()}
         </div>
       )}
 
@@ -434,7 +441,7 @@ const App = () => {
   );
 };
 
-// 旋鈕組件內部實作
+// 旋鈕組件
 const KnobControl = ({ label, value, onChange }) => {
   const [isDragging, setIsDragging] = useState(false);
   const lastY = useRef(0);
@@ -449,7 +456,7 @@ const KnobControl = ({ label, value, onChange }) => {
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="text-[9px] text-white/40 tracking-[0.15em]">{label}_MOD</div>
+      <div className="text-[9px] text-white/40 tracking-[0.15em]">{label}_模組</div>
       <div 
         className={`w-16 h-16 rounded-full border transition-all duration-300 flex items-center justify-center relative bg-gradient-to-b from-white/10 to-transparent ${isDragging ? 'border-white/70 scale-105 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'border-white/20'}`}
         onMouseDown={(e) => start(e.clientY)}
