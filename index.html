@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SELF_OBSERVER :: v16.0.0</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <title>SELF_OBSERVER :: v17.0.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -11,14 +11,10 @@
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
     *{box-sizing:border-box;margin:0;padding:0;}
     body{background:#000;overflow:hidden;font-family:'Share Tech Mono',monospace;color:#fff;user-select:none;touch-action:none;}
-
-    /* CRT */
     #crt{pointer-events:none;position:fixed;inset:0;z-index:40;
-         background:linear-gradient(rgba(18,16,16,0) 50%,rgba(255,255,255,0.01) 50%),
-                    linear-gradient(90deg,rgba(255,255,255,0.005),rgba(255,255,255,0.005));
+         background:linear-gradient(rgba(18,16,16,0) 50%,rgba(255,255,255,.01) 50%),
+                    linear-gradient(90deg,rgba(255,255,255,.005),rgba(255,255,255,.005));
          background-size:100% 3px,3px 100%;opacity:.8;}
-
-    /* Cursor */
     #cur{position:fixed;width:48px;height:48px;border:1px solid #ef4444;border-radius:50%;
          z-index:100;pointer-events:none;transform:translate(-50%,-50%);
          mix-blend-mode:screen;transition:width .3s,height .3s,border-color .3s;}
@@ -43,57 +39,76 @@
           border:1px solid rgba(255,255,255,.15);cursor:pointer;transition:background .7s,box-shadow .7s;}
     .ibtn.blue {background:#60a5fa;box-shadow:0 0 15px rgba(96,165,250,.8);border-color:transparent;}
     .ibtn.green{background:#4ade80;box-shadow:0 0 15px rgba(74,222,128,.8);border-color:transparent;animation:p1 1.5s infinite;}
-    .ibtn.amber{background:#fbbf24;box-shadow:0 0 15px rgba(251,191,36,.9);border-color:transparent;animation:p2 .8s infinite;}
-    .ibtn.white{background:#fff;   box-shadow:0 0 18px rgba(255,255,255,.9);border-color:transparent;}
+    .ibtn.amber{background:#fbbf24;box-shadow:0 0 15px rgba(251,191,36,.9);border-color:transparent;animation:p2 .6s infinite;}
+    .ibtn.white{background:#fff;box-shadow:0 0 18px rgba(255,255,255,.9);border-color:transparent;}
     @keyframes p1{0%,100%{opacity:1}50%{opacity:.5}}
-    @keyframes p2{0%,100%{opacity:1}50%{opacity:.15}}
+    @keyframes p2{0%,100%{opacity:1}50%{opacity:.1}}
+    #eeg{position:absolute;left:24px;bottom:110px;z-index:50;font-size:10px;line-height:1.8;color:rgba(255,255,255,.25);pointer-events:none;}
 
-    /* EEG HUD */
-    #eeg{position:absolute;left:24px;bottom:110px;z-index:50;font-size:10px;line-height:1.8;
-         color:rgba(255,255,255,.25);pointer-events:none;}
-
-    /* ── AI Reveal Overlay ─────────────────────────────────── */
-    /* Full-screen image that fades in OVER the base scene     */
-    #ai-reveal{
-      position:fixed;inset:0;z-index:30;pointer-events:none;
-      opacity:0;transition:opacity 2.8s ease;
+    /* ── AI PROCESS CANVAS (full screen, above Three.js) ── */
+    #ai-canvas{
+      position:fixed;inset:0;z-index:35;pointer-events:none;
+      width:100%;height:100%;
+      opacity:0;
+      transition:none; /* JS controls this */
     }
-    #ai-reveal canvas{position:absolute;inset:0;width:100%;height:100%;}
 
-    /* Small status bar bottom-left */
-    #ai-hud{
-      position:absolute;left:24px;bottom:20px;z-index:200;pointer-events:none;
-      display:flex;flex-direction:column;gap:6px;max-width:min(300px,38vw);
+    /* ── AI Terminal HUD (top-left) ──────────────────────── */
+    #ai-terminal{
+      position:absolute;left:24px;top:24px;z-index:200;pointer-events:none;
+      width:min(340px,42vw);
+      border:1px solid rgba(255,180,0,.1);
+      background:rgba(0,0,0,.55);
+      padding:14px 16px 16px;
+      opacity:0;
+      transition:opacity .6s;
     }
-    #ai-row{display:flex;align-items:center;gap:8px;}
-    #ai-led{width:5px;height:5px;border-radius:50%;background:rgba(255,180,0,.18);flex-shrink:0;
-            transition:background .4s,box-shadow .4s;}
-    #ai-led.think{background:rgba(255,180,0,.9);box-shadow:0 0 10px rgba(255,180,0,.7);animation:p2 .6s infinite;}
-    #ai-led.live {background:rgba(255,180,0,.6);box-shadow:0 0 7px rgba(255,180,0,.5);animation:none;}
-    #ai-txt{font-size:7px;letter-spacing:.3em;color:rgba(255,180,0,.3);text-transform:uppercase;}
-    #ai-prompt{font-size:8px;color:rgba(255,180,0,.0);letter-spacing:.04em;line-height:1.5;
-               white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .8s;}
-    #ai-prompt.show{color:rgba(255,180,0,.38);}
-    #ai-prog-wrap{height:1px;background:rgba(255,180,0,.07);}
-    #ai-prog{height:100%;background:rgba(255,180,0,.5);width:0%;transition:width .1s linear;}
+    #ai-terminal.show{opacity:1;}
+    #ai-term-title{
+      font-size:7px;letter-spacing:.4em;color:rgba(255,180,0,.4);
+      margin-bottom:10px;display:flex;align-items:center;gap:8px;
+    }
+    #ai-term-dot{
+      width:6px;height:6px;border-radius:50%;background:rgba(255,180,0,.2);
+      flex-shrink:0;transition:background .3s,box-shadow .3s;
+    }
+    #ai-term-dot.hot{background:rgba(255,80,0,.9);box-shadow:0 0 12px rgba(255,80,0,.8);animation:p2 .5s infinite;}
+    #ai-term-dot.done{background:rgba(255,180,0,.7);box-shadow:0 0 8px rgba(255,180,0,.5);animation:none;}
 
-    /* countdown ring */
-    #ai-ring{
-      position:absolute;right:40px;top:40px;z-index:200;pointer-events:none;
-      opacity:0;transition:opacity .6s;
+    /* Log lines */
+    #ai-log{font-size:9px;line-height:2.0;color:rgba(255,255,255,.3);min-height:80px;}
+    #ai-log .line{display:block;overflow:hidden;white-space:nowrap;
+                  animation:typeIn .4s steps(40) forwards;}
+    #ai-log .line.dim{color:rgba(255,255,255,.12);}
+    #ai-log .line.hot{color:rgba(255,180,0,.7);}
+    #ai-log .line.done{color:rgba(255,255,255,.5);}
+    @keyframes typeIn{from{width:0}to{width:100%}}
+
+    /* Progress bar */
+    #ai-prog-outer{height:1px;background:rgba(255,180,0,.08);margin-top:10px;position:relative;overflow:hidden;}
+    #ai-prog-inner{height:100%;background:rgba(255,180,0,.6);width:0%;transition:width .15s linear;}
+    #ai-prog-glow{
+      position:absolute;right:0;top:-3px;width:6px;height:7px;
+      background:rgba(255,180,0,.9);box-shadow:0 0 8px rgba(255,180,0,1);
+      opacity:0;transition:opacity .3s;
     }
-    #ai-ring.show{opacity:1;}
-    #ai-ring svg{display:block;}
-    #ai-ring-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-                 font-size:8px;letter-spacing:.2em;color:rgba(255,180,0,.5);}
+    #ai-prog-outer.active #ai-prog-glow{opacity:1;}
+
+    /* Prompt line */
+    #ai-prompt-line{
+      font-size:7.5px;color:rgba(255,180,0,.0);letter-spacing:.03em;
+      line-height:1.55;margin-top:8px;transition:color 1s;
+      white-space:normal;word-break:break-all;
+    }
+    #ai-prompt-line.show{color:rgba(255,180,0,.32);}
   </style>
 </head>
 <body>
 
 <script>
-  const FIREBASE_CONFIG = typeof __firebase_config !== 'undefined'
-    ? JSON.parse(__firebase_config)
-    : {apiKey:"",authDomain:"",projectId:"",storageBucket:"",messagingSenderId:"",appId:""};
+  const FIREBASE_CONFIG = typeof __firebase_config!=='undefined'
+    ?JSON.parse(__firebase_config)
+    :{apiKey:"",authDomain:"",projectId:"",storageBucket:"",messagingSenderId:"",appId:""};
 </script>
 
 <div id="crt"></div>
@@ -103,20 +118,21 @@
 <canvas id="mc" width="100" height="75"
   style="position:absolute;bottom:20px;left:20px;opacity:.08;border:1px solid rgba(255,255,255,.05);z-index:50;pointer-events:none;"></canvas>
 
-<!-- AI full-screen reveal layer -->
-<div id="ai-reveal">
-  <canvas id="ai-canvas"></canvas>
-</div>
+<!-- AI process canvas -->
+<canvas id="ai-canvas"></canvas>
 
-<!-- Countdown ring top-right -->
-<div id="ai-ring">
-  <svg width="48" height="48" viewBox="0 0 48 48">
-    <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,180,0,0.1)" stroke-width="1"/>
-    <circle id="ring-arc" cx="24" cy="24" r="20" fill="none" stroke="rgba(255,180,0,0.5)"
-            stroke-width="1" stroke-dasharray="125.6" stroke-dashoffset="125.6"
-            stroke-linecap="round" transform="rotate(-90 24 24)"/>
-  </svg>
-  <div id="ai-ring-txt">AI</div>
+<!-- AI Terminal HUD -->
+<div id="ai-terminal">
+  <div id="ai-term-title">
+    <div id="ai-term-dot"></div>
+    <span>GENERATIVE_PROCESS :: LOG</span>
+  </div>
+  <div id="ai-log"></div>
+  <div id="ai-prog-outer">
+    <div id="ai-prog-inner"></div>
+    <div id="ai-prog-glow"></div>
+  </div>
+  <div id="ai-prompt-line">—</div>
 </div>
 
 <!-- Controls -->
@@ -124,15 +140,15 @@
   <div style="display:flex;gap:24px;margin-bottom:8px;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
       <span style="font-size:7px;color:rgba(255,255,255,.2);letter-spacing:.25em;">驗證_API</span>
-      <button id="btn-g" class="ibtn" title="Google"></button>
+      <button id="btn-g" class="ibtn"></button>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
       <span style="font-size:7px;color:rgba(255,255,255,.2);letter-spacing:.25em;">腦波_連結</span>
-      <button id="btn-e" class="ibtn" title="EEG"></button>
+      <button id="btn-e" class="ibtn"></button>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
       <span style="font-size:7px;color:rgba(255,180,0,.3);letter-spacing:.25em;">AI_觀察</span>
-      <button id="btn-ai" class="ibtn" title="觸發 AI 生成"></button>
+      <button id="btn-ai" class="ibtn"></button>
     </div>
   </div>
   <div style="display:flex;gap:40px;">
@@ -147,135 +163,307 @@
      color:rgba(96,165,250,.5);letter-spacing:.2em;display:none;"></div>
 <div id="eeg">— 未連線</div>
 
-<!-- AI HUD bottom-left -->
-<div id="ai-hud">
-  <div id="ai-row">
-    <div id="ai-led"></div>
-    <span id="ai-txt">AI_GAZE :: 初始化場景中…</span>
-  </div>
-  <div id="ai-prompt">—</div>
-  <div id="ai-prog-wrap"><div id="ai-prog"></div></div>
-</div>
-
 <script>
-/* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════
    STATE
-═══════════════════════════════════════════════════════════ */
-let chaos=.5, entropy=.4;
+═══════════════════════════════════════════════ */
+let chaos=.5,entropy=.4;
 let eegActive=false;
 let scene,camera,renderer,shaderMat,mesh,particles,liquidWeb,videoTex;
 let prevFrame=null;
 
 const vs={
-  tx:innerWidth/2, ty:innerHeight/2,
-  cx:innerWidth/2, cy:innerHeight/2,
-  lastSwitch:Date.now(), trans:1, tTrans:1,
-  interacting:false, subMode:0, modeCount:0, phase:1,
+  tx:innerWidth/2,ty:innerHeight/2,cx:innerWidth/2,cy:innerHeight/2,
+  lastSwitch:Date.now(),trans:1,tTrans:1,
+  interacting:false,subMode:0,modeCount:0,phase:1,
 };
 
-/* ── AI state ──────────────────────────────────────────── */
-const ai={
-  phase:'init',        // init → warming → generating → revealing → idle → loop
-  warmupDone:false,
-  blendNow:0,
-  blendTarget:0,
-  revealCanvas:null,
-  revealCtx:null,
-  revealImg:null,
-  revealAlpha:0,
-  revealAlphaTarget:0,
-  generating:false,
-  lastGen:0,
+/* ═══════════════════════════════════════════════
+   AI CANVAS  — the deliberate construction effect
+═══════════════════════════════════════════════ */
+const aiCv  = document.getElementById('ai-canvas');
+const aiCtx = aiCv.getContext('2d');
+
+function resizeAICanvas(){
+  aiCv.width=innerWidth; aiCv.height=innerHeight;
+}
+resizeAICanvas();
+window.addEventListener('resize',resizeAICanvas);
+
+/* ── off-screen work canvas for pixel ops ─── */
+const offCv  = document.createElement('canvas');
+const offCtx = offCv.getContext('2d');
+
+let aiState={
+  phase:'idle',   // idle|loading|constructing|settled|fading
+  img:null,
+  constructT:0,   // 0→1 progress
+  constructDur:3800,  // ms to build up
+  settleTimer:null,
   loopTimer:null,
-  countdownStart:0,
-  countdownLen:0,
+  lastGen:0,
 };
 
-/* ── Countdown ring ─────────────────────────────────── */
-const ringArc=document.getElementById('ring-arc');
-const ringDiv=document.getElementById('ai-ring');
-const RING_CIRC=125.6;
+const LOG_EL  = document.getElementById('ai-log');
+const PROG_EL = document.getElementById('ai-prog-inner');
+const PROG_OUTER = document.getElementById('ai-prog-outer');
+const DOT_EL  = document.getElementById('ai-term-dot');
+const TERM_EL = document.getElementById('ai-terminal');
+const PROMPT_EL = document.getElementById('ai-prompt-line');
 
-function setRing(t01){
-  const off=RING_CIRC*(1-t01);
-  ringArc.setAttribute('stroke-dashoffset',off.toFixed(1));
-}
-
-/* ── AI Canvas reveal overlay ──────────────────────── */
-function initAICanvas(){
-  const cv=document.getElementById('ai-canvas');
-  cv.width=innerWidth; cv.height=innerHeight;
-  ai.revealCanvas=cv;
-  ai.revealCtx=cv.getContext('2d');
-}
-window.addEventListener('resize',()=>{
-  if(ai.revealCanvas){ai.revealCanvas.width=innerWidth;ai.revealCanvas.height=innerHeight;}
-});
-
-/* ── Draw AI image onto reveal canvas (cover-fit + glitch) */
-let revealGlitchT=0;
-function drawReveal(){
-  if(!ai.revealImg||!ai.revealCtx) return;
-  const cv=ai.revealCanvas,ctx=ai.revealCtx;
-  const iw=ai.revealImg.naturalWidth||512,ih=ai.revealImg.naturalHeight||512;
-  const scale=Math.max(cv.width/iw,cv.height/ih);
-  const dw=iw*scale,dh=ih*scale;
-  const dx=(cv.width-dw)/2,dy=(cv.height-dh)/2;
-
-  ctx.clearRect(0,0,cv.width,cv.height);
-  ctx.save();
-  ctx.globalAlpha=1;
-
-  // Slight RGB channel split for glitch feel
-  const gAmt=(Math.random()-.5)*4*(chaos+.2);
-  if(Math.random()<.12){
-    ctx.globalCompositeOperation='screen';
-    ctx.filter='url(#none)';
-    // R channel
-    ctx.globalAlpha=.7;
-    ctx.drawImage(ai.revealImg,dx+gAmt,dy,dw,dh);
-    ctx.globalAlpha=.7;
-    ctx.drawImage(ai.revealImg,dx-gAmt,dy,dw,dh);
-    ctx.globalCompositeOperation='source-over';
+let logLines=[];
+function addLog(text,cls=''){
+  const s=document.createElement('span');
+  s.className='line'+(cls?' '+cls:'');
+  s.textContent=text;
+  LOG_EL.appendChild(s);
+  logLines.push(s);
+  if(logLines.length>7){
+    logLines[0].classList.add('dim');
+    if(logLines.length>10) logLines.shift().remove();
   }
-  ctx.globalAlpha=1;
-  ctx.filter='saturate(.7) contrast(1.05)';
-  ctx.drawImage(ai.revealImg,dx,dy,dw,dh);
-  ctx.filter='none';
-  ctx.restore();
+  LOG_EL.scrollTop=LOG_EL.scrollHeight;
+}
+function setProgress(v){
+  PROG_EL.style.width=(v*100).toFixed(1)+'%';
+  PROG_OUTER.classList.toggle('active',v>0&&v<1);
+}
 
-  // scanline overlay
+/* ── DRAW PHASES ──────────────────────────────
+   Phase A  (loading):  animated static noise + scan bars
+   Phase B  (constructing): pixelated → medium → sharp
+   Phase C  (settled):  final image with subtle drift
+   Phase D  (fading):   dissolves back to noise, fades out
+─────────────────────────────────────────────── */
+
+/* noise helper */
+function drawNoise(ctx,w,h,alpha,blockSize){
+  const bw=Math.ceil(w/blockSize),bh=Math.ceil(h/blockSize);
+  for(let x=0;x<bw;x++) for(let y=0;y<bh;y++){
+    const v=Math.random()*255|0;
+    ctx.fillStyle=`rgba(${v},${Math.floor(v*.6)},${Math.floor(v*.3)},${alpha})`;
+    ctx.fillRect(x*blockSize,y*blockSize,blockSize,blockSize);
+  }
+}
+
+/* scanline sweep */
+function drawScanBar(ctx,w,h,t){
+  const y=(t%1)*h;
+  const g=ctx.createLinearGradient(0,y-40,0,y+40);
+  g.addColorStop(0,'rgba(255,180,0,0)');
+  g.addColorStop(.5,'rgba(255,180,0,0.18)');
+  g.addColorStop(1,'rgba(255,180,0,0)');
+  ctx.fillStyle=g;
+  ctx.fillRect(0,y-40,w,80);
+}
+
+/* pixelated image at given resolution */
+function drawPixelated(srcImg,ctx,w,h,res){
+  if(!srcImg) return;
+  offCv.width=res; offCv.height=res;
+  offCtx.drawImage(srcImg,0,0,res,res);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(offCv,0,0,w,h);
+  ctx.imageSmoothingEnabled=true;
+}
+
+/* scanline pass */
+function applyScanlines(ctx,w,h,intensity){
   ctx.save();
-  ctx.globalAlpha=0.04+entropy*.04;
-  for(let y=0;y<cv.height;y+=3){
+  ctx.globalAlpha=intensity;
+  for(let y=0;y<h;y+=3){
     ctx.fillStyle='#000';
-    ctx.fillRect(0,y,cv.width,1);
+    ctx.fillRect(0,y,w,1);
   }
   ctx.restore();
-
-  // vignette
-  const vg=ctx.createRadialGradient(cv.width/2,cv.height/2,cv.height*.25,cv.width/2,cv.height/2,cv.height*.85);
-  vg.addColorStop(0,'rgba(0,0,0,0)');
-  vg.addColorStop(1,'rgba(0,0,0,0.72)');
-  ctx.fillStyle=vg; ctx.fillRect(0,0,cv.width,cv.height);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   PROMPT BUILDER  (6 modes × 2 variants)
-═══════════════════════════════════════════════════════════ */
+/* vignette */
+function applyVignette(ctx,w,h){
+  const vg=ctx.createRadialGradient(w/2,h/2,h*.2,w/2,h/2,h*.85);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,0.75)');
+  ctx.fillStyle=vg;
+  ctx.fillRect(0,0,w,h);
+}
+
+/* RGB glitch shift */
+function applyGlitch(ctx,img,w,h,amt){
+  if(!img||amt<.005) return;
+  ctx.save();
+  ctx.globalCompositeOperation='screen';
+  ctx.globalAlpha=.45;
+  // R
+  ctx.drawImage(img,-amt*w,0,w,h);
+  // B
+  ctx.globalAlpha=.35;
+  ctx.drawImage(img,amt*w,0,w,h);
+  ctx.restore();
+}
+
+/* horizontal glitch bar tears */
+function applyTears(ctx,img,w,h,chaos){
+  if(!img) return;
+  const n=Math.floor(chaos*6)+1;
+  ctx.save();
+  for(let i=0;i<n;i++){
+    if(Math.random()>.55) continue;
+    const sy=Math.random()*h;
+    const sh=Math.random()*20+4;
+    const dx=(Math.random()-.5)*40*chaos;
+    ctx.drawImage(img,0,sy,w,sh,dx,sy,w,sh);
+  }
+  ctx.restore();
+}
+
+/* ── Master render each frame ─────────────────
+   Called from Three.js animate()
+─────────────────────────────────────────────── */
+let frameT=0;
+function renderAICanvas(){
+  const w=aiCv.width,h=aiCv.height;
+  aiCtx.clearRect(0,0,w,h);
+  frameT+=.016;
+
+  if(aiState.phase==='loading'){
+    /* ── Animated static noise while waiting for Pollinations ── */
+    drawNoise(aiCtx,w,h,.55,Math.random()<.3?6:12);
+    drawScanBar(aiCtx,w,h,frameT*.5);
+    // horizontal glitch bars
+    if(Math.random()<.15){
+      const y=Math.random()*h, sh=Math.random()*8+2;
+      aiCtx.save();
+      aiCtx.fillStyle=`rgba(255,${Math.random()*60|0},0,${Math.random()*.4})`;
+      aiCtx.fillRect(0,y,w,sh);
+      aiCtx.restore();
+    }
+    setProgress((.5+Math.sin(frameT*3)*.3));
+    aiCv.style.opacity='.8';
+
+  } else if(aiState.phase==='constructing'){
+    /* ── Progressive build: noise→pixelated→sharp ── */
+    const t=Math.min(1,(Date.now()-aiState.constructStart)/aiState.constructDur);
+    aiState.constructT=t;
+    setProgress(t);
+
+    const w=aiCv.width,h=aiCv.height;
+
+    if(t<.18){
+      /* pure noise, image fragments appearing */
+      drawNoise(aiCtx,w,h,.5,16);
+      if(aiState.img && t>.06){
+        aiCtx.save();
+        aiCtx.globalAlpha=(t-.06)/.12*0.3;
+        drawPixelated(aiState.img,aiCtx,w,h,8);
+        aiCtx.restore();
+      }
+      drawScanBar(aiCtx,w,h,frameT*.9);
+
+    } else if(t<.40){
+      /* blocky 16×16 mosaic sweeping in */
+      const p=(t-.18)/.22;
+      const tileRes=Math.floor(8+p*24);  // 8→32
+      drawNoise(aiCtx,w,h,(1-p)*.35,tileRes);
+      aiCtx.save();
+      aiCtx.globalAlpha=p*.85;
+      drawPixelated(aiState.img,aiCtx,w,h,tileRes);
+      aiCtx.restore();
+      applyGlitch(aiCtx,aiState.img,w,h,(1-p)*.03);
+      drawScanBar(aiCtx,w,h,frameT*.7);
+
+    } else if(t<.68){
+      /* medium res — image recognisable, still blocky */
+      const p=(t-.40)/.28;
+      const tileRes=Math.floor(32+p*128);  // 32→160
+      aiCtx.save();
+      aiCtx.globalAlpha=.88;
+      drawPixelated(aiState.img,aiCtx,w,h,tileRes);
+      aiCtx.restore();
+      applyGlitch(aiCtx,aiState.img,w,h,(1-p)*.018);
+      applyTears(aiCtx,aiState.img,w,h,(1-p)*chaos);
+      if(Math.random()<.08) drawNoise(aiCtx,w,h,.12,tileRes);
+      drawScanBar(aiCtx,w,h,frameT*.5);
+
+    } else {
+      /* sharpening to final */
+      const p=(t-.68)/.32;
+      aiCtx.save();
+      aiCtx.globalAlpha=1;
+      aiCtx.filter=`saturate(${.5+p*.5}) contrast(${1+p*.08})`;
+      aiCtx.drawImage(aiState.img,0,0,w,h);
+      aiCtx.filter='none';
+      aiCtx.restore();
+      // residual glitch decays
+      applyGlitch(aiCtx,aiState.img,w,h,(1-p)*.008);
+      if(Math.random()<.04*(1-p)) applyTears(aiCtx,aiState.img,w,h,(1-p)*chaos);
+      drawScanBar(aiCtx,w,h,frameT*.3*(1-p));
+    }
+
+    applyScanlines(aiCtx,w,h,.06);
+    applyVignette(aiCtx,w,h);
+    aiCv.style.opacity='.85';
+
+    if(t>=1){
+      aiState.phase='settled';
+      aiState.constructT=1;
+      DOT_EL.className='done';
+      addLog('> RENDER COMPLETE','done');
+      addLog('> OBSERVING…','done');
+      setProgress(1);
+      scheduleNext();
+    }
+
+  } else if(aiState.phase==='settled'){
+    /* ── Stable but alive: subtle drift + persistent scan ── */
+    aiCtx.save();
+    aiCtx.filter='saturate(.65) contrast(1.06)';
+    // very slow UV drift via tiny canvas transform
+    const drift=Math.sin(frameT*.12)*.003*w;
+    aiCtx.drawImage(aiState.img,drift,0,w,h);
+    aiCtx.filter='none';
+    aiCtx.restore();
+    applyGlitch(aiCtx,aiState.img,w,h,.003*chaos);
+    if(Math.random()<.04) applyTears(aiCtx,aiState.img,w,h,.015*chaos);
+    applyScanlines(aiCtx,w,h,.055);
+    applyVignette(aiCtx,w,h);
+    aiCv.style.opacity='.82';
+
+  } else if(aiState.phase==='fading'){
+    /* ── Dissolve back to noise then out ── */
+    const t=Math.min(1,(Date.now()-aiState.fadeStart)/1800);
+    aiCtx.save();
+    aiCtx.globalAlpha=1-t*.7;
+    aiCtx.filter='saturate(.4)';
+    aiCtx.drawImage(aiState.img,0,0,w,h);
+    aiCtx.filter='none';
+    aiCtx.restore();
+    drawNoise(aiCtx,w,h,t*.6,Math.random()<.4?6:12);
+    applyScanlines(aiCtx,w,h,.08);
+    applyVignette(aiCtx,w,h);
+    aiCv.style.opacity=((1-t)*.85).toFixed(3);
+    if(t>=1){
+      aiState.phase='idle';
+      aiCv.style.opacity='0';
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   PROMPT BUILDER
+═══════════════════════════════════════════════ */
 const PROMPTS=[
-  ["biometric face scan art, cyan phosphorescent neural network, machine vision portrait, dark void, glowing contour lines of a human face, cinematic",
-   "AI perceiving human presence, face dissolved in cyan data streams, surveillance art, dark background"],
-  ["wireframe human portrait, pure white edge-detection lines on black, algorithmic face topology, circuit board identity, fine art photography",
-   "canny edge portrait, machine archaeology of the self, structural lines only, technical sublime"],
-  ["photographic negative portrait, X-ray face, inverted reality, ghost identity, solarized noir, cinematic dark",
-   "AI seeing inverse of existence, negative exposure self-portrait, spectral presence in darkness"],
-  ["bilateral symmetry face portrait, sacred geometry human, Rorschach identity mandala, mirror reflection art, symmetrical dark beauty",
-   "observer observing observer, fractal self, infinite reflection portrait, the eye gazing back"],
-  ["mosaic pixelated face, low resolution surveillance portrait, 8bit pixel art identity, censored by squares, digital impressionism",
-   "AI assembling a human from fragments, pixel archaeology, consciousness at minimum resolution"],
-  ["chromatic aberration portrait, RGB channel split face, prism eye seeing a soul, glitch art identity, vaporwave spectral",
-   "machine perceiving color dispersion, spectrum split self, optical error as revelation"],
+  ["biometric face scan, cyan phosphorescent neural network portrait, machine vision, dark void, glowing face contours, surveillance art, cinematic",
+   "AI perceiving human presence, data portrait face dissolved in cyan light streams, biometric art"],
+  ["wireframe human portrait, pure white edge lines on black void, algorithmic face recognition, circuit topology of identity, technical art",
+   "machine seeing structural edges of a face, canny detection portrait, dark void background"],
+  ["photographic negative portrait, X-ray face vision, inverted identity, ghost image, noir solarized",
+   "AI seeing inverse reality, negative exposure self-portrait, spectral presence in darkness"],
+  ["bilateral symmetry face portrait, sacred geometry human, Rorschach identity, mirror reflection dark art, symmetrical",
+   "observer observing observer, fractal self portrait, infinite reflection, mandala face"],
+  ["mosaic pixelated face portrait, surveillance pixels, 8bit digital identity, low resolution human, censored mosaic",
+   "AI assembling human from fragments, pixel archaeology, consciousness at minimum resolution, retro digital"],
+  ["chromatic aberration face portrait, RGB channel split, prism eye art, glitch vaporwave identity, spectrum split self",
+   "machine perceiving color dispersion, optical error as revelation, spectrum split portrait"],
 ];
 
 function buildPrompt(){
@@ -283,99 +471,102 @@ function buildPrompt(){
   const base=pool[Math.floor(Math.random()*pool.length)];
   const cw=chaos>.7?'extreme fragmentation distortion,':chaos>.4?'subtle displacement organic,':'crystalline precise minimal,';
   const ew=entropy>.7?'dissolution entropy chaos,':entropy>.4?'flowing entropic,':'structured ordered,';
-  return `${cw}${ew}${base}, 8k masterpiece, no text no watermark`;
+  return `${cw}${ew}${base}, masterpiece 8k, no text no watermark`;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   GENERATE AI IMAGE  (Pollinations.ai — free, no key)
-═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════
+   GENERATE  (Pollinations.ai — free, no key)
+═══════════════════════════════════════════════ */
+let generating=false;
+
 async function generateAI(){
-  if(ai.generating) return;
-  ai.generating=true;
-  ai.lastGen=Date.now();
+  if(generating) return;
+  generating=true;
+  aiState.lastGen=Date.now();
 
   const btn=document.getElementById('btn-ai');
-  const led=document.getElementById('ai-led');
-  const txt=document.getElementById('ai-txt');
-  const prm=document.getElementById('ai-prompt');
-
   btn.className='ibtn amber';
-  led.className='think';
-  txt.textContent='AI_GAZE :: 生成中…';
+  DOT_EL.className='hot';
+  TERM_EL.classList.add('show');
+  LOG_EL.innerHTML=''; logLines=[];
 
+  addLog('> INIT GENERATIVE_PROCESS');
+  addLog('> SAMPLING SCENE STATE…','hot');
+  setProgress(0);
+
+  await delay(400);
   const prompt=buildPrompt();
-  prm.textContent=prompt.length>65?prompt.substring(0,65)+'…':prompt;
-  prm.classList.add('show');
+  PROMPT_EL.textContent=prompt.length>90?prompt.substring(0,90)+'…':prompt;
+  PROMPT_EL.classList.add('show');
+  addLog('> PROMPT ENCODED ['+prompt.split(',').length+' tokens]');
+
+  await delay(300);
+  addLog('> DISPATCHING TO MODEL…','hot');
+
+  aiState.phase='loading';
+  aiCv.style.opacity='0';
+  // fade in canvas
+  aiCv.style.transition='opacity .5s';
+  await delay(100);
+  aiCv.style.opacity='.8';
 
   const seed=Math.floor(Math.random()*99999);
   const url=`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&nologo=true&seed=${seed}&model=flux`;
+
+  addLog('> DIFFUSION RUNNING…','hot');
 
   try{
     const img=new Image();
     img.crossOrigin='anonymous';
     await new Promise((res,rej)=>{
       img.onload=res; img.onerror=rej; img.src=url;
-      setTimeout(()=>rej(new Error('timeout')),32000);
+      setTimeout(()=>rej(new Error('timeout')),35000);
     });
 
-    ai.revealImg=img;
-    drawReveal();
+    addLog('> LATENT DECODED ✓');
+    addLog('> CONSTRUCTING VISUAL…','hot');
+    await delay(200);
 
-    // Fade in the overlay
-    const revealEl=document.getElementById('ai-reveal');
-    const maxOpacity=0.55+chaos*.2;  // 0.55–0.75 depending on chaos
-    revealEl.style.opacity=maxOpacity.toFixed(2);
+    aiState.img=img;
+    aiState.phase='constructing';
+    aiState.constructStart=Date.now();
+    aiState.constructT=0;
 
     btn.className='ibtn white';
-    led.className='live';
-    txt.textContent=`AI_GAZE :: 融入場景`;
-
-    // Start countdown to next generation
-    scheduleNextGen();
 
   }catch(e){
-    console.warn('AI gen fail:',e);
+    console.warn('gen fail:',e);
+    addLog('> ERROR: CONNECTION LOST','hot');
+    aiState.phase='idle';
+    aiCv.style.transition='opacity 1s';
+    aiCv.style.opacity='0';
     btn.className='ibtn';
-    led.className='';
-    txt.textContent='AI_GAZE :: 連線中斷，等待重試';
-    prm.classList.remove('show');
-    setTimeout(()=>scheduleNextGen(),8000);
+    DOT_EL.className='';
+    setTimeout(()=>scheduleNext(),6000);
   }
-  ai.generating=false;
+  generating=false;
 }
 
-/* ── Schedule next auto-generation ─────────────────────── */
-function scheduleNextGen(){
-  if(ai.loopTimer) clearTimeout(ai.loopTimer);
-  // interval: 25s at low entropy → 14s at high entropy
-  const interval=Math.round(25000-entropy*11000);
-  ai.countdownStart=Date.now();
-  ai.countdownLen=interval;
+function scheduleNext(){
+  if(aiState.loopTimer) clearTimeout(aiState.loopTimer);
+  const interval=Math.round(22000-entropy*9000); // 22s→13s
+  addLog(`> NEXT OBSERVATION IN ${(interval/1000).toFixed(0)}s`);
 
-  ringDiv.classList.add('show');
-  document.getElementById('ai-ring-txt').textContent='AI';
-
-  ai.loopTimer=setTimeout(()=>{
-    ringDiv.classList.remove('show');
-    // Fade out current reveal, then gen new
-    const revealEl=document.getElementById('ai-reveal');
-    revealEl.style.transition='opacity 1.2s ease';
-    revealEl.style.opacity='0';
-    setTimeout(()=>generateAI(),1300);
+  aiState.loopTimer=setTimeout(()=>{
+    aiState.phase='fading';
+    aiState.fadeStart=Date.now();
+    addLog('> DISSOLVING…');
+    DOT_EL.className='hot';
+    // wait for fade then gen
+    setTimeout(()=>generateAI(),1900);
   },interval);
 }
 
-/* ─── Countdown animation (called each frame) ──────────── */
-function tickCountdown(){
-  if(!ai.countdownStart) return;
-  const elapsed=Date.now()-ai.countdownStart;
-  const t=Math.min(1,elapsed/ai.countdownLen);
-  setRing(t);
-}
+function delay(ms){return new Promise(r=>setTimeout(r,ms));}
 
-/* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════
    FIREBASE
-═══════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 let auth=null;
 try{
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -390,9 +581,9 @@ document.getElementById('btn-g').addEventListener('click',async()=>{
   if(!auth)return;try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());}catch(e){}
 });
 
-/* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════
    EEG
-═══════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 const MS=0xfe8d,MC='273e0001-4c4d-454d-96be-f03bac821358',ME='273e0004-4c4d-454d-96be-f03bac821358';
 let mg=null,eb=[];
 function fft(re,im){
@@ -425,8 +616,8 @@ function procEEG(v){
     setNeedle('nc',chaos);setNeedle('ne',entropy);
     document.getElementById('eeg').innerHTML=
       '<div style="color:#4ade80;margin-bottom:2px;">&#x2B24; MUSE LIVE</div>'+
-      '<div>&#945;_RELAX: '+(al*100).toFixed(0)+'%</div>'+
-      '<div>&#946;_FOCUS: '+(be*100).toFixed(0)+'%</div>';
+      '<div>&#945;: '+(al*100).toFixed(0)+'%</div>'+
+      '<div>&#946;: '+(be*100).toFixed(0)+'%</div>';
     eb=eb.slice(-256);
   }
 }
@@ -455,20 +646,21 @@ document.getElementById('btn-e').addEventListener('click',async()=>{
   }catch(e){console.error('EEG fail',e);}
 });
 
-/* ── Manual AI trigger ───────────────────────────────── */
+/* ── Manual AI trigger ─────────────────────── */
 document.getElementById('btn-ai').addEventListener('click',()=>{
-  if(ai.loopTimer){clearTimeout(ai.loopTimer);ai.loopTimer=null;}
-  ai.countdownStart=0;
-  ringDiv.classList.remove('show');
-  const revealEl=document.getElementById('ai-reveal');
-  revealEl.style.transition='opacity 1s ease';
-  revealEl.style.opacity='0';
-  setTimeout(()=>generateAI(),1100);
+  if(aiState.loopTimer){clearTimeout(aiState.loopTimer);aiState.loopTimer=null;}
+  if(aiState.phase==='settled'||aiState.phase==='loading'||aiState.phase==='constructing'){
+    aiState.phase='fading';
+    aiState.fadeStart=Date.now();
+    setTimeout(()=>generateAI(),1900);
+  } else {
+    generateAI();
+  }
 });
 
-/* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════
    KNOBS
-═══════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 function setNeedle(id,v){const el=document.getElementById(id);if(el)el.style.transform='rotate('+(v*280-140)+'deg)';}
 function mkKnob(kid,nid,get,set){
   const k=document.getElementById(kid);let drag=false,ly=0;
@@ -485,9 +677,9 @@ function mkKnob(kid,nid,get,set){
 mkKnob('kc','nc',()=>chaos,v=>chaos=v);
 mkKnob('ke','ne',()=>entropy,v=>entropy=v);
 
-/* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════
    THREE.JS
-═══════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 async function initThree(){
   const video=document.getElementById('video');
   try{
@@ -502,58 +694,38 @@ async function initThree(){
   renderer.setSize(innerWidth,innerHeight);
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   document.getElementById('container').appendChild(renderer.domElement);
-
   videoTex=new THREE.VideoTexture(video);
 
   shaderMat=new THREE.ShaderMaterial({
     uniforms:{
-      tDiffuse:{value:videoTex},
-      phasePair:{value:1},subMode:{value:0},
+      tDiffuse:{value:videoTex},phasePair:{value:1},subMode:{value:0},
       time:{value:0},chaos:{value:.5},transition:{value:1.0}
     },
     vertexShader:`
-      varying vec2 vUv; uniform float time; uniform float chaos;
+      varying vec2 vUv;uniform float time,chaos;
       void main(){
-        vUv=uv; vec3 pos=position;
+        vUv=uv;vec3 pos=position;
         float wave=sin(time*(1.1+chaos*1.5)+(pos.x*.06+pos.y*.06))*(chaos*20.0);
         pos.z+=wave;
         gl_Position=projectionMatrix*modelViewMatrix*vec4(pos,1.0);
-      }
-    `,
+      }`,
     fragmentShader:`
-      uniform sampler2D tDiffuse;
-      uniform int phasePair,subMode;
-      uniform float time,chaos,transition;
-      varying vec2 vUv;
+      uniform sampler2D tDiffuse;uniform int subMode;
+      uniform float time,chaos,transition;varying vec2 vUv;
       void main(){
         vec2 uv=vUv;
-        if(chaos>.1){
-          float d=distance(uv,vec2(.5));
-          uv.x+=sin(d*12.0-time*1.5)*.025*chaos;
-          uv.y+=cos(d*12.0-time*1.5)*.025*chaos;
-        }
+        if(chaos>.1){float d=distance(uv,vec2(.5));uv.x+=sin(d*12.-time*1.5)*.025*chaos;uv.y+=cos(d*12.-time*1.5)*.025*chaos;}
+        if(subMode==3)uv.x=abs(uv.x-.5)+.25;
+        if(subMode==4){float sz=60.-(chaos*50.);uv=floor(uv*sz)/sz;}
         vec4 fc;
-        if(subMode==3) uv.x=abs(uv.x-.5)+.25;
-        if(subMode==4){float sz=60.0-(chaos*50.0);uv=floor(uv*sz)/sz;}
-        if(subMode==5){
-          float sh=.03*chaos;
-          fc=vec4(texture2D(tDiffuse,uv+vec2(sh,0.0)).r,
-                  texture2D(tDiffuse,uv).g,
-                  texture2D(tDiffuse,uv-vec2(sh,0.0)).b,1.0);
-        } else fc=texture2D(tDiffuse,uv);
+        if(subMode==5){float sh=.03*chaos;fc=vec4(texture2D(tDiffuse,uv+vec2(sh,0)).r,texture2D(tDiffuse,uv).g,texture2D(tDiffuse,uv-vec2(sh,0)).b,1.);}
+        else fc=texture2D(tDiffuse,uv);
         float luma=dot(fc.rgb,vec3(.299,.587,.114));
-        if(subMode==0){
-          vec3 col=mix(vec3(.05),vec3(.7,.85,1.0),luma);
-          if(luma>.55)col=mix(col,vec3(1.0),(luma-.55)*2.5);
-          fc=vec4(col,1.0);
-        } else if(subMode==1){
-          fc=vec4(vec3(fwidth(luma)*(18.0+chaos*25.0)),1.0);
-        } else if(subMode==2){
-          fc.rgb=vec3(1.0)-fc.rgb; fc.rgb*=vec3(.9,.95,1.0);
-        }
+        if(subMode==0){vec3 c=mix(vec3(.05),vec3(.7,.85,1.),luma);if(luma>.55)c=mix(c,vec3(1.),(luma-.55)*2.5);fc=vec4(c,1.);}
+        else if(subMode==1){fc=vec4(vec3(fwidth(luma)*(18.+chaos*25.)),1.);}
+        else if(subMode==2){fc.rgb=vec3(1.)-fc.rgb;fc.rgb*=vec3(.9,.95,1.);}
         gl_FragColor=fc*transition;
-      }
-    `,
+      }`,
     transparent:true
   });
 
@@ -578,26 +750,22 @@ async function initThree(){
     particles.add(p);
   }
   scene.add(particles);
-
-  liquidWeb=new THREE.LineSegments(
-    new THREE.BufferGeometry(),
-    new THREE.LineBasicMaterial({color:0x444444,transparent:true,opacity:.08})
-  );
+  liquidWeb=new THREE.LineSegments(new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({color:0x444444,transparent:true,opacity:.08}));
   scene.add(liquidWeb);
 
-  /* ── Warmup: let base scene run for 6s, then first AI gen ── */
-  document.getElementById('ai-txt').textContent='AI_GAZE :: 場景初始化中…';
-  setTimeout(()=>{
-    document.getElementById('ai-txt').textContent='AI_GAZE :: 開始觀察…';
-    generateAI();
-  },6000);
+  // Warmup: run base scene for 5s, then first AI gen
+  addLog('> BASE SCENE INITIALIZED');
+  addLog('> WARMING UP…');
+  TERM_EL.classList.add('show');
+  setTimeout(()=>generateAI(),5000);
 
   animate();
 }
 
-/* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════
    MOTION TRACKING
-═══════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 const elCur=document.getElementById('cur'),elCrt=document.getElementById('crt');
 let tf=0;
 function trackMotion(){
@@ -614,19 +782,19 @@ function trackMotion(){
       if(d>26){const idx=i/4;tx+=idx%c.width;ty+=Math.floor(idx/c.width);cnt++;}
     }
     if(cnt>25){
-      let nx=1.0-(tx/cnt/c.width);
+      let nx=1-(tx/cnt/c.width);
       nx=Math.max(0,Math.min(1,(nx-.05)/.9));
       vs.tx=nx*innerWidth;vs.ty=(ty/cnt/c.height)*innerHeight;
       elCur.classList.add('on');
-    } else elCur.classList.remove('on');
+    }else elCur.classList.remove('on');
   }
   if(!prevFrame)prevFrame=new ImageData(cur.width,cur.height);
   prevFrame.data.set(cur.data);
 }
 
-/* ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════
    MAIN LOOP
-═══════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */
 function animate(){
   requestAnimationFrame(animate);
   const t=Date.now()*.001;
@@ -637,20 +805,11 @@ function animate(){
   vs.trans+=(vs.tTrans-vs.trans)*.12;
   shaderMat.uniforms.transition.value=vs.trans;
 
-  // Redraw reveal canvas each frame (subtle animation)
-  if(ai.revealImg) drawReveal();
+  // ← AI canvas render every frame
+  if(aiState.phase!=='idle') renderAICanvas();
 
   trackMotion();
-  tickCountdown();
-
-  // Update progress bar to show blend
-  const revealEl=document.getElementById('ai-reveal');
-  const curOp=parseFloat(revealEl.style.opacity||0);
-  const maxOp=.55+chaos*.2;
-  document.getElementById('ai-prog').style.width=((curOp/maxOp)*100).toFixed(1)+'%';
-
   elCrt.style.opacity=(0.7+Math.sin(t*50)*.02*entropy).toString();
-
   vs.cx+=(vs.tx-vs.cx)*.22;vs.cy+=(vs.ty-vs.cy)*.22;
   elCur.style.left=vs.cx+'px';elCur.style.top=vs.cy+'px';
 
@@ -669,11 +828,7 @@ function animate(){
     vs.lastSwitch=Date.now();
   }
 
-  const wm=new THREE.Vector3(
-    ((vs.cx/innerWidth)*2-1)*115,
-    -((vs.cy/innerHeight)*2-1)*85,10
-  );
-
+  const wm=new THREE.Vector3(((vs.cx/innerWidth)*2-1)*115,-((vs.cy/innerHeight)*2-1)*85,10);
   if(mesh.visible){
     const arr=mesh.geometry.attributes.position.array;
     for(let i=0;i<arr.length;i+=3){
@@ -685,12 +840,10 @@ function animate(){
     }
     mesh.geometry.attributes.position.needsUpdate=true;
   }
-
   if(particles.visible){
     const pts=[];
     particles.children.forEach(p=>{
-      const ud=p.userData;
-      const tg=ud.origin.clone();
+      const ud=p.userData,tg=ud.origin.clone();
       tg.x+=Math.sin(t*(.35+chaos*1.3)+ud.noise)*(42*chaos);
       tg.y+=Math.cos(t*.85*(.35+chaos*1.3)+ud.noise)*(42*chaos);
       const dist=p.position.distanceTo(wm);
@@ -700,8 +853,7 @@ function animate(){
       }
       ud.v.add(new THREE.Vector3().subVectors(tg,p.position).multiplyScalar(.025));
       ud.v.multiplyScalar(.86-chaos*.12);
-      p.position.add(ud.v);
-      p.rotation.x+=ud.v.length()*.07;
+      p.position.add(ud.v);p.rotation.x+=ud.v.length()*.07;
     });
     liquidWeb.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
     liquidWeb.geometry.attributes.position.needsUpdate=true;
@@ -710,23 +862,17 @@ function animate(){
 }
 
 window.addEventListener('resize',()=>{
-  if(camera&&renderer){
-    camera.aspect=innerWidth/innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth,innerHeight);
-  }
+  if(camera&&renderer){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}
 });
-
-function onTouch(x,y){vs.interacting=true;vs.tx=x;vs.ty=y;}
+function onT(x,y){vs.interacting=true;vs.tx=x;vs.ty=y;}
 const cont=document.getElementById('container');
-cont.addEventListener('mousedown',e=>onTouch(e.clientX,e.clientY));
-cont.addEventListener('mousemove',e=>{if(e.buttons>0)onTouch(e.clientX,e.clientY);});
+cont.addEventListener('mousedown',e=>onT(e.clientX,e.clientY));
+cont.addEventListener('mousemove',e=>{if(e.buttons>0)onT(e.clientX,e.clientY);});
 cont.addEventListener('mouseup',()=>vs.interacting=false);
-cont.addEventListener('touchstart',e=>onTouch(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
-cont.addEventListener('touchmove',e=>onTouch(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+cont.addEventListener('touchstart',e=>onT(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+cont.addEventListener('touchmove', e=>onT(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
 cont.addEventListener('touchend',()=>vs.interacting=false);
 
-initAICanvas();
 initThree();
 </script>
 </body>
