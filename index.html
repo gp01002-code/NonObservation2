@@ -3,27 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SELF_OBSERVER :: v14.8.5 COHESIVE_VISUALS</title>
+  <title>SELF_OBSERVER :: v14.8.5 FINAL</title>
 
-  <!-- Three.js -->
+  <!-- 核心庫載入 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-  <!-- Firebase v9 compat (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-
-  <!-- Google One Tap -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-  <!-- Tailwind (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+    
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #000; overflow: hidden; font-family: 'Share Tech Mono', monospace; color: #fff; user-select: none; }
+    
+    body { 
+      background: #000; 
+      overflow: hidden; 
+      font-family: 'Share Tech Mono', monospace; 
+      color: #fff; 
+      user-select: none;
+      touch-action: none; 
+    }
 
-    /* CRT 掃描線效果 */
+    /* CRT 掃描線層 */
     #crt-overlay {
       pointer-events: none;
       position: fixed;
@@ -35,7 +38,7 @@
       background-size: 100% 3px, 3px 100%;
     }
 
-    /* 感應游標 */
+    /* 感應游標 (紅色追蹤圈) */
     #cursor-el {
       position: fixed;
       width: 48px; height: 48px;
@@ -54,7 +57,7 @@
       box-shadow: 0 0 25px rgba(255,49,49,0.5);
     }
 
-    /* 旋鈕樣式 */
+    /* 控制介面：旋鈕與指示燈 */
     .knob-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
     .knob-label { font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: .15em; text-transform: uppercase; }
     .knob {
@@ -72,11 +75,11 @@
       position: absolute;
       width: 1px; height: 42%;
       background: rgba(255,255,255,0.8);
+      box-shadow: 0 0 10px rgba(255,255,255,0.6);
       transform-origin: bottom center;
       bottom: 50%; left: calc(50% - 0.5px);
     }
 
-    /* 指示燈 */
     .indicator-btn {
       width: 14px; height: 14px;
       border-radius: 50%;
@@ -98,8 +101,18 @@
 <body>
 
 <script>
-  // Firebase 設定由環境自動注入
-  const FIREBASE_CONFIG = JSON.parse(__firebase_config);
+  // Firebase 設定：若環境變數未注入，請手動替換此對象內容
+  const FIREBASE_CONFIG = typeof __firebase_config !== 'undefined' 
+    ? JSON.parse(__firebase_config) 
+    : {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+      };
+  
   const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"; 
 </script>
 
@@ -108,9 +121,11 @@
 
 <div id="container" style="width:100vw;height:100vh;cursor:none;position:relative;"></div>
 
+<!-- 影片與偵測用 Canvas -->
 <video id="video" style="display:none;" playsinline muted autoplay></video>
 <canvas id="motion-canvas" width="100" height="75" style="position:absolute;bottom:20px;left:20px;opacity:.1;border:1px solid rgba(255,255,255,.05);z-index:50;pointer-events:none;"></canvas>
 
+<!-- 介面層 -->
 <div id="controls" style="position:absolute;right:40px;bottom:40px;display:flex;flex-direction:column;align-items:flex-end;gap:30px;z-index:50;">
   <div style="display:flex;gap:24px;margin-bottom:8px;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
@@ -144,7 +159,7 @@
 
 <script>
 // ══════════════════════════════════════════════════════════════
-//  系統核心狀態
+//  系統核心與狀態
 // ══════════════════════════════════════════════════════════════
 let chaos = 0.5, entropy = 0.4;
 let eegActive = false;
@@ -159,7 +174,7 @@ const state = {
 };
 
 // ══════════════════════════════════════════════════════════════
-//  Firebase & API 整合
+//  Firebase API
 // ══════════════════════════════════════════════════════════════
 firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
@@ -183,7 +198,7 @@ document.getElementById('btn-google').addEventListener('click', async () => {
 });
 
 // ══════════════════════════════════════════════════════════════
-//  EEG (Muse 2/S) 連線
+//  EEG 真實連線 (Muse 2/S)
 // ══════════════════════════════════════════════════════════════
 const MUSE_SERVICE = 0xfe8d;
 const MUSE_CONTROL_CHAR = '273e0001-4c4d-454d-96be-f03bac821358';
@@ -295,7 +310,7 @@ async function initThree() {
 
   videoTexture = new THREE.VideoTexture(video);
 
-  // 核心著色器定義：此材質將用於背景與所有粒子物件
+  // 全域同步著色器：應用於背景與所有幾何物件
   shaderMat = new THREE.ShaderMaterial({
     uniforms: { 
       tDiffuse: { value: videoTexture }, 
@@ -309,7 +324,6 @@ async function initThree() {
       varying vec2 vUv; uniform float time; uniform float chaos;
       void main() {
         vUv = uv; vec3 pos = position;
-        // 幾何體頂點波浪 (影響粒子表面與背景平面)
         float wave = sin(time * (1.1 + chaos * 1.5) + (pos.x * 0.06 + pos.y * 0.06)) * (chaos * 20.0);
         pos.z += wave; gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
@@ -318,57 +332,40 @@ async function initThree() {
       uniform sampler2D tDiffuse; uniform int phasePair; uniform int subMode; uniform float time; uniform float chaos; uniform float transition; varying vec2 vUv;
       void main() {
         vec2 uv = vUv;
-        
-        // 混亂扭曲 (同步應用於粒子與背景)
         if(chaos > 0.1) {
           float d = distance(uv, vec2(0.5));
           uv.x += sin(d * 12.0 - time * 1.5) * 0.025 * chaos;
           uv.y += cos(d * 12.0 - time * 1.5) * 0.025 * chaos;
         }
-
         vec4 finalCol;
-        
-        // 模式濾鏡邏輯
-        if (subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25; // Lacanian Mirror
-        if (subMode == 4) { // Digital Mosaic
-            float size = 60.0 - (chaos * 50.0);
-            uv = floor(uv * size) / size;
-        }
-        
-        if (subMode == 5) { // Chromatic Glitch
+        if (subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25;
+        if (subMode == 4) { float size = 60.0 - (chaos * 50.0); uv = floor(uv * size) / size; }
+        if (subMode == 5) {
           float shift = 0.03 * chaos;
           finalCol = vec4(texture2D(tDiffuse, uv + vec2(shift, 0.0)).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - vec2(shift, 0.0)).b, 1.0);
-        } else {
-          finalCol = texture2D(tDiffuse, uv);
-        }
-
+        } else finalCol = texture2D(tDiffuse, uv);
         float luma = dot(finalCol.rgb, vec3(0.299, 0.587, 0.114));
-
-        if (subMode == 0) { // White Thermal
+        if (subMode == 0) {
           vec3 col = mix(vec3(0.05), vec3(0.7, 0.85, 1.0), luma);
           if(luma > 0.55) col = mix(col, vec3(1.0), (luma-0.55)*2.5);
           finalCol = vec4(col, 1.0);
-        } else if (subMode == 1) { // Ghost Edges
-          finalCol = vec4(vec3(fwidth(luma) * (18.0 + chaos * 25.0)), 1.0);
-        } else if (subMode == 2) { // Negative Inverse
+        } else if (subMode == 1) finalCol = vec4(vec3(fwidth(luma) * (18.0 + chaos * 25.0)), 1.0);
+        else if (subMode == 2) {
           finalCol.rgb = vec3(1.0) - finalCol.rgb;
           finalCol.rgb *= vec3(0.9, 0.95, 1.0);
         }
-
         gl_FragColor = finalCol * transition;
       }
     `,
     transparent: true
   });
 
-  // 背景平面
   mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(235, 175, 128, 128), shaderMat);
   scene.add(mesh);
 
-  // 粒子群集：同步應用 shaderMat 以確保濾鏡一致
+  // 粒子幾何群：尺寸分級 + 著色器同步
   particles = new THREE.Group();
-  const cols = 15, rows = 12;
-  const pw = 230/cols, ph = 170/rows;
+  const cols = 15, rows = 12, pw = 230/cols, ph = 170/rows;
   const geos = [
     new THREE.TorusKnotBufferGeometry(pw/3.6, 0.1, 32, 8),
     new THREE.OctahedronBufferGeometry(pw/2.1, 1),
@@ -379,9 +376,8 @@ async function initThree() {
 
   for(let i=0; i<cols; i++) for(let j=0; j<rows; j++){
     const geo = geos[Math.floor(Math.random()*geos.length)];
-    // 關鍵：這裡將粒子材質改為 shaderMat，與背景完全搭合
+    // 同步使用全域著色器材質
     const p = new THREE.Mesh(geo, shaderMat);
-    
     const scale = sizeScales[Math.floor(Math.random() * sizeScales.length)];
     p.scale.set(scale, scale, scale);
     p.position.set(i*pw-115+pw/2, j*ph-85+ph/2, (Math.random()-.5)*20);
@@ -390,7 +386,7 @@ async function initThree() {
   }
   scene.add(particles);
 
-  // 幽靈連線
+  // 極低感度的幽靈連線
   liquidWeb = new THREE.LineSegments(
     new THREE.BufferGeometry(),
     new THREE.LineBasicMaterial({ color:0x444444, transparent:true, opacity:0.08 })
@@ -457,8 +453,6 @@ function animate() {
   }
 
   const wm = new THREE.Vector3(((state.currentX/window.innerWidth)*2-1)*115, -((state.currentY/window.innerHeight)*2-1)*85, 10);
-  
-  // 背景平面與粒子動態呼應 (由 shaderMat 統一處理濾鏡，這裡處理物理位移)
   if (mesh.visible) {
     const arr = mesh.geometry.attributes.position.array;
     for (let i = 0; i < arr.length; i += 3) {
