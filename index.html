@@ -3,110 +3,89 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>SELF_OBSERVER :: v15.0.0</title>
+  <title>SELF_OBSERVER :: v16.0.0</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #000; overflow: hidden; font-family: 'Share Tech Mono', monospace; color: #fff;
-           user-select: none; touch-action: none; }
-    #crt-overlay {
-      pointer-events: none; position: fixed; inset: 0; z-index: 40;
-      background: linear-gradient(rgba(18,16,16,0) 50%, rgba(255,255,255,0.01) 50%),
-                  linear-gradient(90deg, rgba(255,255,255,0.005), rgba(255,255,255,0.005));
-      background-size: 100% 3px, 3px 100%; opacity: 0.8;
-    }
-    #cursor-el {
-      position: fixed; width: 48px; height: 48px; border: 1px solid #ef4444; border-radius: 50%;
-      z-index: 100; pointer-events: none; transform: translate(-50%, -50%);
-      mix-blend-mode: screen; transition: width .3s, height .3s, border-color .3s;
-    }
-    #cursor-el.detecting { width: 65px; height: 65px; border-width: 3px; border-color: #fff;
-                           box-shadow: 0 0 25px rgba(255,49,49,0.5); }
-    #controls { position: absolute; right: 40px; bottom: 40px; display: flex;
-                flex-direction: column; align-items: flex-end; gap: 30px; z-index: 250; pointer-events: auto; }
-    .knob-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; transition: opacity 0.5s ease; }
-    .knob-wrap.locked { opacity: 0.25; pointer-events: none; }
-    .knob-label { font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: .15em; text-transform: uppercase; }
-    .knob {
-      width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15);
-      display: flex; align-items: center; justify-content: center; position: relative;
-      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-      cursor: ns-resize; transition: border-color .3s, transform .3s, box-shadow 0.3s;
-    }
-    .knob:hover { border-color: rgba(255,255,255,0.4); }
-    .knob.dragging { border-color: rgba(255,255,255,0.8); transform: scale(1.08); box-shadow: 0 0 20px rgba(255,255,255,0.1); }
-    .knob-needle {
-      position: absolute; width: 2px; height: 42%; background: rgba(255,255,255,0.9);
-      box-shadow: 0 0 10px rgba(255,255,255,0.6); transform-origin: bottom center;
-      bottom: 50%; left: calc(50% - 1px); pointer-events: none;
-    }
-    .indicator-btn {
-      width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.15); cursor: pointer; transition: background .7s, box-shadow .7s;
-    }
-    .indicator-btn.active-blue  { background:#60a5fa; box-shadow:0 0 15px rgba(96,165,250,0.8); border-color:transparent; }
-    .indicator-btn.active-green { background:#4ade80; box-shadow:0 0 15px rgba(74,222,128,0.8); border-color:transparent; animation:pulse 1.5s infinite; }
-    .indicator-btn.active-amber { background:#fbbf24; box-shadow:0 0 15px rgba(251,191,36,0.9); border-color:transparent; animation:pulse-amber 0.8s infinite; }
-    .indicator-btn.active-white { background:#fff;    box-shadow:0 0 18px rgba(255,255,255,0.85); border-color:transparent; }
-    @keyframes pulse       { 0%,100%{opacity:1} 50%{opacity:.5} }
-    @keyframes pulse-amber { 0%,100%{opacity:1} 50%{opacity:.2} }
-    #eeg-hud { position:absolute; left:24px; bottom:110px; z-index:50; font-size:10px;
-               line-height:1.8; color:rgba(255,255,255,0.25); pointer-events:none; }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#000;overflow:hidden;font-family:'Share Tech Mono',monospace;color:#fff;user-select:none;touch-action:none;}
 
-    /* ── AI Thumbnail top-left ──────────────────────── */
-    #ai-thumb-wrap {
-      position: absolute; left: 24px; top: 24px; z-index: 200;
-      width: 80px; height: 80px;
-      border: 1px solid rgba(255,180,0,0.18);
-      overflow: hidden;
-      opacity: 0; transition: opacity 1.4s ease;
-      pointer-events: none;
-    }
-    #ai-thumb-wrap.show { opacity: 1; }
-    #ai-thumb { width:100%; height:100%; object-fit:cover;
-                filter: saturate(0.5) contrast(1.15); mix-blend-mode: screen; }
-    #ai-thumb-scan {
-      position: absolute; inset: 0; pointer-events: none;
-      background: linear-gradient(180deg, transparent 0%, rgba(255,180,0,0.12) 50%, transparent 100%);
-      background-size: 100% 40%;
-      animation: scanLoop 2.8s linear infinite;
-    }
-    @keyframes scanLoop { 0%{background-position:0 -40%} 100%{background-position:0 140%} }
-    #ai-thumb-label {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      font-size: 6px; letter-spacing: .22em; color: rgba(255,180,0,0.55);
-      background: rgba(0,0,0,0.65); padding: 2px 4px; text-align: center;
-    }
+    /* CRT */
+    #crt{pointer-events:none;position:fixed;inset:0;z-index:40;
+         background:linear-gradient(rgba(18,16,16,0) 50%,rgba(255,255,255,0.01) 50%),
+                    linear-gradient(90deg,rgba(255,255,255,0.005),rgba(255,255,255,0.005));
+         background-size:100% 3px,3px 100%;opacity:.8;}
 
-    /* ── AI Status bottom-left ──────────────────────── */
-    #ai-panel {
-      position: absolute; left: 24px; bottom: 20px;
-      z-index: 60; pointer-events: none;
-      max-width: min(320px, 40vw);
+    /* Cursor */
+    #cur{position:fixed;width:48px;height:48px;border:1px solid #ef4444;border-radius:50%;
+         z-index:100;pointer-events:none;transform:translate(-50%,-50%);
+         mix-blend-mode:screen;transition:width .3s,height .3s,border-color .3s;}
+    #cur.on{width:65px;height:65px;border-width:3px;border-color:#fff;box-shadow:0 0 25px rgba(255,49,49,.5);}
+
+    /* Controls */
+    #controls{position:absolute;right:40px;bottom:40px;display:flex;flex-direction:column;
+              align-items:flex-end;gap:30px;z-index:250;pointer-events:auto;}
+    .kw{display:flex;flex-direction:column;align-items:center;gap:12px;transition:opacity .5s;}
+    .kw.locked{opacity:.25;pointer-events:none;}
+    .kl{font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.15em;text-transform:uppercase;}
+    .knob{width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,.15);
+          display:flex;align-items:center;justify-content:center;position:relative;
+          background:radial-gradient(circle,rgba(255,255,255,.1) 0%,transparent 70%);
+          cursor:ns-resize;transition:border-color .3s,transform .3s,box-shadow .3s;}
+    .knob:hover{border-color:rgba(255,255,255,.4);}
+    .knob.drag{border-color:rgba(255,255,255,.8);transform:scale(1.08);box-shadow:0 0 20px rgba(255,255,255,.1);}
+    .needle{position:absolute;width:2px;height:42%;background:rgba(255,255,255,.9);
+            box-shadow:0 0 10px rgba(255,255,255,.6);transform-origin:bottom center;
+            bottom:50%;left:calc(50% - 1px);pointer-events:none;}
+    .ibtn{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.03);
+          border:1px solid rgba(255,255,255,.15);cursor:pointer;transition:background .7s,box-shadow .7s;}
+    .ibtn.blue {background:#60a5fa;box-shadow:0 0 15px rgba(96,165,250,.8);border-color:transparent;}
+    .ibtn.green{background:#4ade80;box-shadow:0 0 15px rgba(74,222,128,.8);border-color:transparent;animation:p1 1.5s infinite;}
+    .ibtn.amber{background:#fbbf24;box-shadow:0 0 15px rgba(251,191,36,.9);border-color:transparent;animation:p2 .8s infinite;}
+    .ibtn.white{background:#fff;   box-shadow:0 0 18px rgba(255,255,255,.9);border-color:transparent;}
+    @keyframes p1{0%,100%{opacity:1}50%{opacity:.5}}
+    @keyframes p2{0%,100%{opacity:1}50%{opacity:.15}}
+
+    /* EEG HUD */
+    #eeg{position:absolute;left:24px;bottom:110px;z-index:50;font-size:10px;line-height:1.8;
+         color:rgba(255,255,255,.25);pointer-events:none;}
+
+    /* ── AI Reveal Overlay ─────────────────────────────────── */
+    /* Full-screen image that fades in OVER the base scene     */
+    #ai-reveal{
+      position:fixed;inset:0;z-index:30;pointer-events:none;
+      opacity:0;transition:opacity 2.8s ease;
     }
-    #ai-label {
-      font-size: 7px; letter-spacing: .3em; color: rgba(255,180,0,0.25);
-      display: flex; align-items: center; gap: 7px; margin-bottom: 6px;
+    #ai-reveal canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+    /* Small status bar bottom-left */
+    #ai-hud{
+      position:absolute;left:24px;bottom:20px;z-index:200;pointer-events:none;
+      display:flex;flex-direction:column;gap:6px;max-width:min(300px,38vw);
     }
-    #ai-dot {
-      width: 5px; height: 5px; border-radius: 50%;
-      background: rgba(255,180,0,0.18); flex-shrink: 0;
-      transition: background 0.4s, box-shadow 0.4s;
+    #ai-row{display:flex;align-items:center;gap:8px;}
+    #ai-led{width:5px;height:5px;border-radius:50%;background:rgba(255,180,0,.18);flex-shrink:0;
+            transition:background .4s,box-shadow .4s;}
+    #ai-led.think{background:rgba(255,180,0,.9);box-shadow:0 0 10px rgba(255,180,0,.7);animation:p2 .6s infinite;}
+    #ai-led.live {background:rgba(255,180,0,.6);box-shadow:0 0 7px rgba(255,180,0,.5);animation:none;}
+    #ai-txt{font-size:7px;letter-spacing:.3em;color:rgba(255,180,0,.3);text-transform:uppercase;}
+    #ai-prompt{font-size:8px;color:rgba(255,180,0,.0);letter-spacing:.04em;line-height:1.5;
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .8s;}
+    #ai-prompt.show{color:rgba(255,180,0,.38);}
+    #ai-prog-wrap{height:1px;background:rgba(255,180,0,.07);}
+    #ai-prog{height:100%;background:rgba(255,180,0,.5);width:0%;transition:width .1s linear;}
+
+    /* countdown ring */
+    #ai-ring{
+      position:absolute;right:40px;top:40px;z-index:200;pointer-events:none;
+      opacity:0;transition:opacity .6s;
     }
-    #ai-dot.thinking { background:rgba(255,180,0,0.9); box-shadow:0 0 10px rgba(255,180,0,0.7); animation:pulse-amber 0.6s infinite; }
-    #ai-dot.ready    { background:rgba(255,180,0,0.55); box-shadow:0 0 6px rgba(255,180,0,0.35); animation:none; }
-    #ai-prompt-line {
-      font-size: 8px; color: rgba(255,180,0,0.0); line-height: 1.55;
-      letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      max-width: 100%; transition: color 0.8s;
-      margin-bottom: 5px;
-    }
-    #ai-prompt-line.show { color: rgba(255,180,0,0.35); }
-    #ai-bar-wrap { height:1px; background:rgba(255,180,0,0.07); }
-    #ai-bar { height:100%; background:rgba(255,180,0,0.45); width:0%; transition:width .08s linear; }
+    #ai-ring.show{opacity:1;}
+    #ai-ring svg{display:block;}
+    #ai-ring-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+                 font-size:8px;letter-spacing:.2em;color:rgba(255,180,0,.5);}
   </style>
 </head>
 <body>
@@ -114,21 +93,30 @@
 <script>
   const FIREBASE_CONFIG = typeof __firebase_config !== 'undefined'
     ? JSON.parse(__firebase_config)
-    : { apiKey:"", authDomain:"", projectId:"", storageBucket:"", messagingSenderId:"", appId:"" };
+    : {apiKey:"",authDomain:"",projectId:"",storageBucket:"",messagingSenderId:"",appId:""};
 </script>
 
-<div id="crt-overlay"></div>
-<div id="cursor-el"></div>
+<div id="crt"></div>
+<div id="cur"></div>
 <div id="container" style="width:100vw;height:100vh;cursor:none;position:relative;"></div>
 <video id="video" style="display:none;" playsinline muted autoplay></video>
-<canvas id="motion-canvas" width="100" height="75"
+<canvas id="mc" width="100" height="75"
   style="position:absolute;bottom:20px;left:20px;opacity:.08;border:1px solid rgba(255,255,255,.05);z-index:50;pointer-events:none;"></canvas>
 
-<!-- AI thumbnail -->
-<div id="ai-thumb-wrap">
-  <img id="ai-thumb" src="" alt="" crossorigin="anonymous" />
-  <div id="ai-thumb-scan"></div>
-  <div id="ai-thumb-label">AI_GAZE</div>
+<!-- AI full-screen reveal layer -->
+<div id="ai-reveal">
+  <canvas id="ai-canvas"></canvas>
+</div>
+
+<!-- Countdown ring top-right -->
+<div id="ai-ring">
+  <svg width="48" height="48" viewBox="0 0 48 48">
+    <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,180,0,0.1)" stroke-width="1"/>
+    <circle id="ring-arc" cx="24" cy="24" r="20" fill="none" stroke="rgba(255,180,0,0.5)"
+            stroke-width="1" stroke-dasharray="125.6" stroke-dashoffset="125.6"
+            stroke-linecap="round" transform="rotate(-90 24 24)"/>
+  </svg>
+  <div id="ai-ring-txt">AI</div>
 </div>
 
 <!-- Controls -->
@@ -136,399 +124,434 @@
   <div style="display:flex;gap:24px;margin-bottom:8px;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
       <span style="font-size:7px;color:rgba(255,255,255,.2);letter-spacing:.25em;">驗證_API</span>
-      <button id="btn-google" class="indicator-btn" title="連結 Google 帳號"></button>
+      <button id="btn-g" class="ibtn" title="Google"></button>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
       <span style="font-size:7px;color:rgba(255,255,255,.2);letter-spacing:.25em;">腦波_連結</span>
-      <button id="btn-eeg" class="indicator-btn" title="連結 Muse 腦波儀"></button>
+      <button id="btn-e" class="ibtn" title="EEG"></button>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
       <span style="font-size:7px;color:rgba(255,180,0,.3);letter-spacing:.25em;">AI_觀察</span>
-      <button id="btn-ai" class="indicator-btn" title="觸發 AI 生成觀察"></button>
+      <button id="btn-ai" class="ibtn" title="觸發 AI 生成"></button>
     </div>
   </div>
   <div style="display:flex;gap:40px;">
-    <div class="knob-wrap" id="wrap-chaos">
-      <span class="knob-label">混亂_模組</span>
-      <div class="knob" id="knob-chaos"><div class="knob-needle" id="needle-chaos"></div></div>
-    </div>
-    <div class="knob-wrap" id="wrap-entropy">
-      <span class="knob-label">熵增_模組</span>
-      <div class="knob" id="knob-entropy"><div class="knob-needle" id="needle-entropy"></div></div>
-    </div>
+    <div class="kw" id="wc"><span class="kl">混亂_模組</span>
+      <div class="knob" id="kc"><div class="needle" id="nc"></div></div></div>
+    <div class="kw" id="we"><span class="kl">熵增_模組</span>
+      <div class="knob" id="ke"><div class="needle" id="ne"></div></div></div>
   </div>
 </div>
 
-<div id="uid-tag" style="position:absolute;top:24px;right:32px;font-size:9px;color:rgba(96,165,250,0.5);letter-spacing:.2em;display:none;"></div>
-<div id="eeg-hud">— 未連線</div>
+<div id="uid-tag" style="position:absolute;top:24px;right:32px;font-size:9px;
+     color:rgba(96,165,250,.5);letter-spacing:.2em;display:none;"></div>
+<div id="eeg">— 未連線</div>
 
-<!-- AI status bottom-left -->
-<div id="ai-panel">
-  <div id="ai-label"><div id="ai-dot"></div><span id="ai-status">AI_GAZE :: 待機</span></div>
-  <div id="ai-prompt-line">—</div>
-  <div id="ai-bar-wrap"><div id="ai-bar"></div></div>
+<!-- AI HUD bottom-left -->
+<div id="ai-hud">
+  <div id="ai-row">
+    <div id="ai-led"></div>
+    <span id="ai-txt">AI_GAZE :: 初始化場景中…</span>
+  </div>
+  <div id="ai-prompt">—</div>
+  <div id="ai-prog-wrap"><div id="ai-prog"></div></div>
 </div>
 
 <script>
-/* ─── State ─────────────────────────────────────────────── */
-let chaos = 0.5, entropy = 0.4;
-let eegActive = false;
-let scene, camera, renderer, shaderMat, mesh, particles, liquidWeb, videoTexture;
-let prevFrame = null;
+/* ═══════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════ */
+let chaos=.5, entropy=.4;
+let eegActive=false;
+let scene,camera,renderer,shaderMat,mesh,particles,liquidWeb,videoTex;
+let prevFrame=null;
 
-const viewState = {
-  targetX: window.innerWidth/2, targetY: window.innerHeight/2,
-  currentX: window.innerWidth/2, currentY: window.innerHeight/2,
-  lastSwitch: Date.now(), transition: 1, targetTransition: 1,
-  isInteracting: false, subMode: 0, modeCounter: 0, phasePair: 1,
+const vs={
+  tx:innerWidth/2, ty:innerHeight/2,
+  cx:innerWidth/2, cy:innerHeight/2,
+  lastSwitch:Date.now(), trans:1, tTrans:1,
+  interacting:false, subMode:0, modeCount:0, phase:1,
 };
 
-const aiSt = {
-  generating: false,
-  texture: null,
-  blendTarget: 0.0,
-  blendNow: 0.0,
-  blendMode: 0,
-  lastGen: 0,
-  fadeOutTimer: null,
+/* ── AI state ──────────────────────────────────────────── */
+const ai={
+  phase:'init',        // init → warming → generating → revealing → idle → loop
+  warmupDone:false,
+  blendNow:0,
+  blendTarget:0,
+  revealCanvas:null,
+  revealCtx:null,
+  revealImg:null,
+  revealAlpha:0,
+  revealAlphaTarget:0,
+  generating:false,
+  lastGen:0,
+  loopTimer:null,
+  countdownStart:0,
+  countdownLen:0,
 };
 
-/* ─── Prompt builder ─────────────────────────────────────── */
-const PROMPT_POOL = [
-  // 0 cyan / biometric
-  ["biometric scan art face, cyan phosphorescent neural mapping, machine vision portrait, dark background, glowing contour lines",
-   "AI perceiving human presence, data portrait, face dissolved in cyan light streams, cybernetic surveillance art"],
-  // 1 edge / wireframe
-  ["wireframe human portrait, pure white edge lines on black void, algorithmic face detection, circuit topology of identity",
-   "canny edge detection portrait, tech art, digital archaeology of a face, structural lines only"],
-  // 2 invert / negative
-  ["photographic negative portrait, X-ray vision art, inverted identity, liminal self, dark room ghost image",
-   "AI seeing inverse of reality, solarized portrait, negative exposure face, spectral presence"],
-  // 3 mirror / symmetry
-  ["bilateral symmetry portrait, sacred geometry face, Rorschach identity, mirror reflection art, perfect bilateral face",
-   "observer observing observer, fractal symmetry portrait, mandala face, infinite recursion self"],
-  // 4 pixel / mosaic
-  ["mosaic pixelated face, low resolution surveillance portrait, identity censored by pixels, 8bit face reconstruction",
-   "AI assembling human from fragments, pixel mosaic portrait, digital impressionism face, 16x16 grid portrait"],
-  // 5 chromatic aberration
-  ["chromatic aberration portrait, RGB channel split face, prism eye seeing a human, vaporwave glitch art",
-   "machine perceiving color fringe, spectrum split portrait, optical error revealing soul, glitch identity"],
-];
+/* ── Countdown ring ─────────────────────────────────── */
+const ringArc=document.getElementById('ring-arc');
+const ringDiv=document.getElementById('ai-ring');
+const RING_CIRC=125.6;
 
-function buildPrompt() {
-  const pool = PROMPT_POOL[viewState.subMode] || PROMPT_POOL[0];
-  const base = pool[Math.floor(Math.random() * pool.length)];
-  const cWord = chaos > 0.7 ? 'extreme distortion noise fragmented, ' : chaos > 0.4 ? 'subtle displacement organic, ' : 'crystalline precise calm, ';
-  const eWord = entropy > 0.7 ? 'high entropy dissolution chaotic, ' : entropy > 0.4 ? 'flowing entropic organic, ' : 'structured ordered minimal, ';
-  return `${cWord}${eWord}${base}, cinematic dark, fine art photography, 8k, masterpiece, no text`;
+function setRing(t01){
+  const off=RING_CIRC*(1-t01);
+  ringArc.setAttribute('stroke-dashoffset',off.toFixed(1));
 }
 
-function pollinationsURL(prompt) {
-  const seed = Math.floor(Math.random() * 99999);
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}&model=flux`;
+/* ── AI Canvas reveal overlay ──────────────────────── */
+function initAICanvas(){
+  const cv=document.getElementById('ai-canvas');
+  cv.width=innerWidth; cv.height=innerHeight;
+  ai.revealCanvas=cv;
+  ai.revealCtx=cv.getContext('2d');
 }
-
-/* ─── Generate AI image ──────────────────────────────────── */
-async function generateAI() {
-  if (aiSt.generating || !shaderMat) return;
-  aiSt.generating = true;
-  aiSt.lastGen = Date.now();
-
-  const btnAI    = document.getElementById('btn-ai');
-  const dot      = document.getElementById('ai-dot');
-  const statusEl = document.getElementById('ai-status');
-  const promptEl = document.getElementById('ai-prompt-line');
-  const thumbW   = document.getElementById('ai-thumb-wrap');
-  const thumbImg = document.getElementById('ai-thumb');
-
-  // Clear any pending fade-out
-  if (aiSt.fadeOutTimer) { clearTimeout(aiSt.fadeOutTimer); aiSt.fadeOutTimer = null; }
-
-  btnAI.classList.add('active-amber');
-  dot.className = 'thinking';
-  statusEl.textContent = 'AI_GAZE :: 生成中…';
-
-  const prompt = buildPrompt();
-  promptEl.textContent = prompt.length > 70 ? prompt.substring(0,70)+'…' : prompt;
-  promptEl.classList.add('show');
-
-  const url = pollinationsURL(prompt);
-
-  try {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    await new Promise((res, rej) => {
-      img.onload = res;
-      img.onerror = rej;
-      img.src = url;
-      setTimeout(() => rej(new Error('timeout')), 28000);
-    });
-
-    // Thumbnail
-    thumbImg.src = img.src;
-    thumbW.classList.add('show');
-
-    // Three.js texture
-    const tex = new THREE.Texture(img);
-    tex.needsUpdate = true;
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-
-    if (aiSt.texture) aiSt.texture.dispose();
-    aiSt.texture = tex;
-
-    shaderMat.uniforms.tAI.value        = tex;
-    shaderMat.uniforms.aiReady.value    = 1.0;
-    shaderMat.uniforms.aiBlendMode.value = viewState.subMode % 4;
-
-    aiSt.blendTarget = 0.32 + chaos * 0.30;
-
-    btnAI.classList.remove('active-amber');
-    btnAI.classList.add('active-white');
-    dot.className = 'ready';
-    statusEl.textContent = `AI_GAZE :: 融入 [BLEND:${(aiSt.blendTarget*100).toFixed(0)}%]`;
-
-    // Fade out after 22s
-    aiSt.fadeOutTimer = setTimeout(() => {
-      aiSt.blendTarget = 0.0;
-      btnAI.classList.remove('active-white');
-      dot.className = '';
-      statusEl.textContent = 'AI_GAZE :: 待機';
-      promptEl.classList.remove('show');
-      setTimeout(() => { thumbW.classList.remove('show'); }, 1200);
-    }, 22000);
-
-  } catch(e) {
-    console.warn('Pollinations fail:', e);
-    btnAI.classList.remove('active-amber');
-    dot.className = '';
-    statusEl.textContent = 'AI_GAZE :: 連線失敗';
-    setTimeout(()=>{ statusEl.textContent='AI_GAZE :: 待機'; promptEl.classList.remove('show'); }, 3000);
-  }
-  aiSt.generating = false;
-}
-
-/* ─── Firebase ───────────────────────────────────────────── */
-let auth = null;
-try {
-  firebase.initializeApp(FIREBASE_CONFIG);
-  auth = firebase.auth();
-  auth.onAuthStateChanged(user => {
-    const btn = document.getElementById('btn-google');
-    const tag = document.getElementById('uid-tag');
-    if (user && !user.isAnonymous) {
-      btn.classList.add('active-blue');
-      tag.style.display='block';
-      tag.textContent='數據持續標記: '+user.uid.substring(0,14).toUpperCase();
-    } else {
-      btn.classList.remove('active-blue'); tag.style.display='none';
-    }
-  });
-} catch(e){ console.warn('Firebase 未設定',e); }
-
-document.getElementById('btn-google').addEventListener('click', async ()=>{
-  if(!auth) return;
-  try{ await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }catch(e){}
+window.addEventListener('resize',()=>{
+  if(ai.revealCanvas){ai.revealCanvas.width=innerWidth;ai.revealCanvas.height=innerHeight;}
 });
 
-/* ─── EEG ────────────────────────────────────────────────── */
-const MUSE_SERVICE='0xfe8d', MUSE_CONTROL='273e0001-4c4d-454d-96be-f03bac821358';
-const MUSE_EEG='273e0004-4c4d-454d-96be-f03bac821358';
-let museGatt=null, eegBuf=[];
+/* ── Draw AI image onto reveal canvas (cover-fit + glitch) */
+let revealGlitchT=0;
+function drawReveal(){
+  if(!ai.revealImg||!ai.revealCtx) return;
+  const cv=ai.revealCanvas,ctx=ai.revealCtx;
+  const iw=ai.revealImg.naturalWidth||512,ih=ai.revealImg.naturalHeight||512;
+  const scale=Math.max(cv.width/iw,cv.height/ih);
+  const dw=iw*scale,dh=ih*scale;
+  const dx=(cv.width-dw)/2,dy=(cv.height-dh)/2;
 
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.save();
+  ctx.globalAlpha=1;
+
+  // Slight RGB channel split for glitch feel
+  const gAmt=(Math.random()-.5)*4*(chaos+.2);
+  if(Math.random()<.12){
+    ctx.globalCompositeOperation='screen';
+    ctx.filter='url(#none)';
+    // R channel
+    ctx.globalAlpha=.7;
+    ctx.drawImage(ai.revealImg,dx+gAmt,dy,dw,dh);
+    ctx.globalAlpha=.7;
+    ctx.drawImage(ai.revealImg,dx-gAmt,dy,dw,dh);
+    ctx.globalCompositeOperation='source-over';
+  }
+  ctx.globalAlpha=1;
+  ctx.filter='saturate(.7) contrast(1.05)';
+  ctx.drawImage(ai.revealImg,dx,dy,dw,dh);
+  ctx.filter='none';
+  ctx.restore();
+
+  // scanline overlay
+  ctx.save();
+  ctx.globalAlpha=0.04+entropy*.04;
+  for(let y=0;y<cv.height;y+=3){
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,y,cv.width,1);
+  }
+  ctx.restore();
+
+  // vignette
+  const vg=ctx.createRadialGradient(cv.width/2,cv.height/2,cv.height*.25,cv.width/2,cv.height/2,cv.height*.85);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,0.72)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,cv.width,cv.height);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PROMPT BUILDER  (6 modes × 2 variants)
+═══════════════════════════════════════════════════════════ */
+const PROMPTS=[
+  ["biometric face scan art, cyan phosphorescent neural network, machine vision portrait, dark void, glowing contour lines of a human face, cinematic",
+   "AI perceiving human presence, face dissolved in cyan data streams, surveillance art, dark background"],
+  ["wireframe human portrait, pure white edge-detection lines on black, algorithmic face topology, circuit board identity, fine art photography",
+   "canny edge portrait, machine archaeology of the self, structural lines only, technical sublime"],
+  ["photographic negative portrait, X-ray face, inverted reality, ghost identity, solarized noir, cinematic dark",
+   "AI seeing inverse of existence, negative exposure self-portrait, spectral presence in darkness"],
+  ["bilateral symmetry face portrait, sacred geometry human, Rorschach identity mandala, mirror reflection art, symmetrical dark beauty",
+   "observer observing observer, fractal self, infinite reflection portrait, the eye gazing back"],
+  ["mosaic pixelated face, low resolution surveillance portrait, 8bit pixel art identity, censored by squares, digital impressionism",
+   "AI assembling a human from fragments, pixel archaeology, consciousness at minimum resolution"],
+  ["chromatic aberration portrait, RGB channel split face, prism eye seeing a soul, glitch art identity, vaporwave spectral",
+   "machine perceiving color dispersion, spectrum split self, optical error as revelation"],
+];
+
+function buildPrompt(){
+  const pool=PROMPTS[vs.subMode]||PROMPTS[0];
+  const base=pool[Math.floor(Math.random()*pool.length)];
+  const cw=chaos>.7?'extreme fragmentation distortion,':chaos>.4?'subtle displacement organic,':'crystalline precise minimal,';
+  const ew=entropy>.7?'dissolution entropy chaos,':entropy>.4?'flowing entropic,':'structured ordered,';
+  return `${cw}${ew}${base}, 8k masterpiece, no text no watermark`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GENERATE AI IMAGE  (Pollinations.ai — free, no key)
+═══════════════════════════════════════════════════════════ */
+async function generateAI(){
+  if(ai.generating) return;
+  ai.generating=true;
+  ai.lastGen=Date.now();
+
+  const btn=document.getElementById('btn-ai');
+  const led=document.getElementById('ai-led');
+  const txt=document.getElementById('ai-txt');
+  const prm=document.getElementById('ai-prompt');
+
+  btn.className='ibtn amber';
+  led.className='think';
+  txt.textContent='AI_GAZE :: 生成中…';
+
+  const prompt=buildPrompt();
+  prm.textContent=prompt.length>65?prompt.substring(0,65)+'…':prompt;
+  prm.classList.add('show');
+
+  const seed=Math.floor(Math.random()*99999);
+  const url=`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&nologo=true&seed=${seed}&model=flux`;
+
+  try{
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    await new Promise((res,rej)=>{
+      img.onload=res; img.onerror=rej; img.src=url;
+      setTimeout(()=>rej(new Error('timeout')),32000);
+    });
+
+    ai.revealImg=img;
+    drawReveal();
+
+    // Fade in the overlay
+    const revealEl=document.getElementById('ai-reveal');
+    const maxOpacity=0.55+chaos*.2;  // 0.55–0.75 depending on chaos
+    revealEl.style.opacity=maxOpacity.toFixed(2);
+
+    btn.className='ibtn white';
+    led.className='live';
+    txt.textContent=`AI_GAZE :: 融入場景`;
+
+    // Start countdown to next generation
+    scheduleNextGen();
+
+  }catch(e){
+    console.warn('AI gen fail:',e);
+    btn.className='ibtn';
+    led.className='';
+    txt.textContent='AI_GAZE :: 連線中斷，等待重試';
+    prm.classList.remove('show');
+    setTimeout(()=>scheduleNextGen(),8000);
+  }
+  ai.generating=false;
+}
+
+/* ── Schedule next auto-generation ─────────────────────── */
+function scheduleNextGen(){
+  if(ai.loopTimer) clearTimeout(ai.loopTimer);
+  // interval: 25s at low entropy → 14s at high entropy
+  const interval=Math.round(25000-entropy*11000);
+  ai.countdownStart=Date.now();
+  ai.countdownLen=interval;
+
+  ringDiv.classList.add('show');
+  document.getElementById('ai-ring-txt').textContent='AI';
+
+  ai.loopTimer=setTimeout(()=>{
+    ringDiv.classList.remove('show');
+    // Fade out current reveal, then gen new
+    const revealEl=document.getElementById('ai-reveal');
+    revealEl.style.transition='opacity 1.2s ease';
+    revealEl.style.opacity='0';
+    setTimeout(()=>generateAI(),1300);
+  },interval);
+}
+
+/* ─── Countdown animation (called each frame) ──────────── */
+function tickCountdown(){
+  if(!ai.countdownStart) return;
+  const elapsed=Date.now()-ai.countdownStart;
+  const t=Math.min(1,elapsed/ai.countdownLen);
+  setRing(t);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FIREBASE
+═══════════════════════════════════════════════════════════ */
+let auth=null;
+try{
+  firebase.initializeApp(FIREBASE_CONFIG);
+  auth=firebase.auth();
+  auth.onAuthStateChanged(u=>{
+    const b=document.getElementById('btn-g'),t=document.getElementById('uid-tag');
+    if(u&&!u.isAnonymous){b.classList.add('blue');t.style.display='block';t.textContent='數據標記: '+u.uid.substring(0,14).toUpperCase();}
+    else{b.classList.remove('blue');t.style.display='none';}
+  });
+}catch(e){console.warn('Firebase skip',e);}
+document.getElementById('btn-g').addEventListener('click',async()=>{
+  if(!auth)return;try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());}catch(e){}
+});
+
+/* ═══════════════════════════════════════════════════════════
+   EEG
+═══════════════════════════════════════════════════════════ */
+const MS=0xfe8d,MC='273e0001-4c4d-454d-96be-f03bac821358',ME='273e0004-4c4d-454d-96be-f03bac821358';
+let mg=null,eb=[];
 function fft(re,im){
-  const n=re.length; if(n<=1)return;
-  const h=n>>1, reE=[],reO=[],imE=[],imO=[];
-  for(let i=0;i<h;i++){reE[i]=re[i*2];imE[i]=im[i*2];reO[i]=re[i*2+1];imO[i]=im[i*2+1];}
-  fft(reE,imE);fft(reO,imO);
+  const n=re.length;if(n<=1)return;
+  const h=n>>1,rE=[],rO=[],iE=[],iO=[];
+  for(let i=0;i<h;i++){rE[i]=re[i*2];iE[i]=im[i*2];rO[i]=re[i*2+1];iO[i]=im[i*2+1];}
+  fft(rE,iE);fft(rO,iO);
   for(let k=0;k<h;k++){
     const a=-2*Math.PI*k/n,c=Math.cos(a),s=Math.sin(a);
-    const tr=c*reO[k]-s*imO[k],ti=s*reO[k]+c*imO[k];
-    re[k]=reE[k]+tr;im[k]=imE[k]+ti;re[k+h]=reE[k]-tr;im[k+h]=imE[k]-ti;
+    const tr=c*rO[k]-s*iO[k],ti=s*rO[k]+c*iO[k];
+    re[k]=rE[k]+tr;im[k]=iE[k]+ti;re[k+h]=rE[k]-tr;im[k+h]=iE[k]-ti;
   }
 }
-function processEEG(value){
-  const data=new DataView(value.buffer),decoded=[];
-  for(let i=2;i<data.byteLength-2;i+=3){
-    decoded.push(((data.getUint8(i)<<4)|(data.getUint8(i+1)>>4))-2048);
-    decoded.push((((data.getUint8(i+1)&0x0F)<<8)|data.getUint8(i+2))-2048);
+function procEEG(v){
+  const d=new DataView(v.buffer),dec=[];
+  for(let i=2;i<d.byteLength-2;i+=3){
+    dec.push(((d.getUint8(i)<<4)|(d.getUint8(i+1)>>4))-2048);
+    dec.push((((d.getUint8(i+1)&0x0F)<<8)|d.getUint8(i+2))-2048);
   }
-  eegBuf.push(...decoded);
-  if(eegBuf.length>256){
-    const sig=eegBuf.slice(-256),re=[...sig],im=new Array(256).fill(0);
+  eb.push(...dec);
+  if(eb.length>256){
+    const sig=eb.slice(-256),re=[...sig],im=new Array(256).fill(0);
     fft(re,im);
     let aP=0,bP=0;
     const b=hz=>Math.round(hz*256/256);
     for(let i=b(8);i<b(13);i++)aP+=re[i]*re[i]+im[i]*im[i];
     for(let i=b(13);i<b(30);i++)bP+=re[i]*re[i]+im[i]*im[i];
-    const tot=aP+bP+1e-6,alpha=aP/tot,beta=bP/tot;
-    entropy=0.1+alpha*0.9; chaos=0.1+beta*0.9;
-    updateNeedle('needle-entropy',entropy); updateNeedle('needle-chaos',chaos);
-    document.getElementById('eeg-hud').innerHTML=
+    const tot=aP+bP+1e-6,al=aP/tot,be=bP/tot;
+    entropy=.1+al*.9;chaos=.1+be*.9;
+    setNeedle('nc',chaos);setNeedle('ne',entropy);
+    document.getElementById('eeg').innerHTML=
       '<div style="color:#4ade80;margin-bottom:2px;">&#x2B24; MUSE LIVE</div>'+
-      '<div>&#945;_RELAX: '+(alpha*100).toFixed(0)+'%</div>'+
-      '<div>&#946;_FOCUS : '+(beta*100).toFixed(0)+'%</div>';
-    eegBuf=eegBuf.slice(-256);
+      '<div>&#945;_RELAX: '+(al*100).toFixed(0)+'%</div>'+
+      '<div>&#946;_FOCUS: '+(be*100).toFixed(0)+'%</div>';
+    eb=eb.slice(-256);
   }
 }
-document.getElementById('btn-eeg').addEventListener('click',async()=>{
-  const cw=document.getElementById('wrap-chaos'),ew=document.getElementById('wrap-entropy');
+document.getElementById('btn-e').addEventListener('click',async()=>{
+  const cw=document.getElementById('wc'),ew=document.getElementById('we');
   if(eegActive){
-    if(museGatt)museGatt.disconnect();
-    eegActive=false;document.getElementById('btn-eeg').classList.remove('active-green');
-    document.getElementById('eeg-hud').textContent='— 未連線';
+    if(mg)mg.disconnect();eegActive=false;
+    document.getElementById('btn-e').className='ibtn';
+    document.getElementById('eeg').textContent='— 未連線';
     cw.classList.remove('locked');ew.classList.remove('locked');return;
   }
   try{
-    const device=await navigator.bluetooth.requestDevice({filters:[{services:[MUSE_SERVICE]}],optionalServices:[MUSE_SERVICE]});
-    museGatt=await device.gatt.connect();
-    const svc=await museGatt.getPrimaryService(MUSE_SERVICE);
-    const char=await svc.getCharacteristic(MUSE_EEG);
-    await char.startNotifications();
-    char.addEventListener('characteristicvaluechanged',e=>processEEG(e.target.value));
-    const ctrl=await svc.getCharacteristic(MUSE_CONTROL);
-    const enc=new TextEncoder();
+    const dev=await navigator.bluetooth.requestDevice({filters:[{services:[MS]}],optionalServices:[MS]});
+    mg=await dev.gatt.connect();
+    const svc=await mg.getPrimaryService(MS),ch=await svc.getCharacteristic(ME);
+    await ch.startNotifications();
+    ch.addEventListener('characteristicvaluechanged',e=>procEEG(e.target.value));
+    const ctrl=await svc.getCharacteristic(MC),enc=new TextEncoder();
     await ctrl.writeValue(enc.encode('v1\n'));await ctrl.writeValue(enc.encode('p21\n'));await ctrl.writeValue(enc.encode('d\n'));
-    eegActive=true;document.getElementById('btn-eeg').classList.add('active-green');
+    eegActive=true;document.getElementById('btn-e').className='ibtn green';
     cw.classList.add('locked');ew.classList.add('locked');
-    device.addEventListener('gattserverdisconnected',()=>{
-      eegActive=false;document.getElementById('btn-eeg').classList.remove('active-green');
+    dev.addEventListener('gattserverdisconnected',()=>{
+      eegActive=false;document.getElementById('btn-e').className='ibtn';
       cw.classList.remove('locked');ew.classList.remove('locked');
     });
   }catch(e){console.error('EEG fail',e);}
 });
 
-/* ─── AI button ──────────────────────────────────────────── */
-document.getElementById('btn-ai').addEventListener('click', () => generateAI());
+/* ── Manual AI trigger ───────────────────────────────── */
+document.getElementById('btn-ai').addEventListener('click',()=>{
+  if(ai.loopTimer){clearTimeout(ai.loopTimer);ai.loopTimer=null;}
+  ai.countdownStart=0;
+  ringDiv.classList.remove('show');
+  const revealEl=document.getElementById('ai-reveal');
+  revealEl.style.transition='opacity 1s ease';
+  revealEl.style.opacity='0';
+  setTimeout(()=>generateAI(),1100);
+});
 
-/* ─── Knobs ──────────────────────────────────────────────── */
-function updateNeedle(id,val){const el=document.getElementById(id);if(el)el.style.transform='rotate('+(val*280-140)+'deg)';}
-function makeKnob(kid,nid,getter,setter){
-  const knob=document.getElementById(kid);let dragging=false,lastY=0;
-  const start=y=>{if(eegActive)return;dragging=true;lastY=y;knob.classList.add('dragging');};
-  const move=y=>{if(!dragging||eegActive)return;const nv=Math.max(0,Math.min(1,getter()+(lastY-y)*0.008));setter(nv);updateNeedle(nid,nv);lastY=y;};
-  const end=()=>{dragging=false;knob.classList.remove('dragging');};
-  knob.addEventListener('mousedown',e=>{e.stopPropagation();start(e.clientY);});
-  window.addEventListener('mousemove',e=>move(e.clientY));
-  window.addEventListener('mouseup',end);
-  knob.addEventListener('touchstart',e=>{e.stopPropagation();start(e.touches[0].clientY);},{passive:false});
-  window.addEventListener('touchmove',e=>{if(dragging){e.preventDefault();move(e.touches[0].clientY);}},{passive:false});
-  window.addEventListener('touchend',end);
+/* ═══════════════════════════════════════════════════════════
+   KNOBS
+═══════════════════════════════════════════════════════════ */
+function setNeedle(id,v){const el=document.getElementById(id);if(el)el.style.transform='rotate('+(v*280-140)+'deg)';}
+function mkKnob(kid,nid,get,set){
+  const k=document.getElementById(kid);let drag=false,ly=0;
+  const s=y=>{if(eegActive)return;drag=true;ly=y;k.classList.add('drag');};
+  const m=y=>{if(!drag||eegActive)return;const v=Math.max(0,Math.min(1,get()+(ly-y)*.008));set(v);setNeedle(nid,v);ly=y;};
+  const e=()=>{drag=false;k.classList.remove('drag');};
+  k.addEventListener('mousedown',ev=>{ev.stopPropagation();s(ev.clientY);});
+  window.addEventListener('mousemove',ev=>m(ev.clientY));
+  window.addEventListener('mouseup',e);
+  k.addEventListener('touchstart',ev=>{ev.stopPropagation();s(ev.touches[0].clientY);},{passive:false});
+  window.addEventListener('touchmove',ev=>{if(drag){ev.preventDefault();m(ev.touches[0].clientY);}},{passive:false});
+  window.addEventListener('touchend',e);
 }
-makeKnob('knob-chaos','needle-chaos',()=>chaos,v=>chaos=v);
-makeKnob('knob-entropy','needle-entropy',()=>entropy,v=>entropy=v);
+mkKnob('kc','nc',()=>chaos,v=>chaos=v);
+mkKnob('ke','ne',()=>entropy,v=>entropy=v);
 
-/* ─── Three.js init ──────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════
+   THREE.JS
+═══════════════════════════════════════════════════════════ */
 async function initThree(){
   const video=document.getElementById('video');
-  try{const s=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:"user"}});video.srcObject=s;await video.play();}catch(e){console.error('cam fail',e);}
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:"user"}});
+    video.srcObject=s;await video.play();
+  }catch(e){console.error('cam fail',e);}
 
   scene=new THREE.Scene();
-  camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,1000);
+  camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,1000);
   camera.position.z=110;
   renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
-  renderer.setSize(window.innerWidth,window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   document.getElementById('container').appendChild(renderer.domElement);
 
-  videoTexture=new THREE.VideoTexture(video);
-
-  // 1×1 black placeholder for tAI
-  const bc=document.createElement('canvas'); bc.width=bc.height=1;
-  bc.getContext('2d').fillRect(0,0,1,1);
-  const blankTex=new THREE.CanvasTexture(bc);
+  videoTex=new THREE.VideoTexture(video);
 
   shaderMat=new THREE.ShaderMaterial({
     uniforms:{
-      tDiffuse:{value:videoTexture},
-      tAI:{value:blankTex},
-      aiReady:{value:0.0},
-      aiBlend:{value:0.0},
-      aiBlendMode:{value:0},
-      phasePair:{value:1},
-      subMode:{value:0},
-      time:{value:0},
-      chaos:{value:0.5},
-      transition:{value:1.0}
+      tDiffuse:{value:videoTex},
+      phasePair:{value:1},subMode:{value:0},
+      time:{value:0},chaos:{value:.5},transition:{value:1.0}
     },
     vertexShader:`
       varying vec2 vUv; uniform float time; uniform float chaos;
       void main(){
         vUv=uv; vec3 pos=position;
-        float wave=sin(time*(1.1+chaos*1.5)+(pos.x*0.06+pos.y*0.06))*(chaos*20.0);
+        float wave=sin(time*(1.1+chaos*1.5)+(pos.x*.06+pos.y*.06))*(chaos*20.0);
         pos.z+=wave;
         gl_Position=projectionMatrix*modelViewMatrix*vec4(pos,1.0);
       }
     `,
     fragmentShader:`
       uniform sampler2D tDiffuse;
-      uniform sampler2D tAI;
-      uniform float aiReady;
-      uniform float aiBlend;
-      uniform int aiBlendMode;
-      uniform int phasePair;
-      uniform int subMode;
-      uniform float time;
-      uniform float chaos;
-      uniform float transition;
+      uniform int phasePair,subMode;
+      uniform float time,chaos,transition;
       varying vec2 vUv;
-
-      vec3 blendScreen(vec3 a,vec3 b)    {return 1.0-(1.0-a)*(1.0-b);}
-      vec3 blendMultiply(vec3 a,vec3 b)  {return a*b*1.6;}
-      vec3 blendOverlay(vec3 a,vec3 b)   {return mix(2.0*a*b,1.0-2.0*(1.0-a)*(1.0-b),step(0.5,a));}
-      vec3 blendDifference(vec3 a,vec3 b){return abs(a-b);}
-
       void main(){
         vec2 uv=vUv;
-        if(chaos>0.1){
-          float d=distance(uv,vec2(0.5));
-          uv.x+=sin(d*12.0-time*1.5)*0.025*chaos;
-          uv.y+=cos(d*12.0-time*1.5)*0.025*chaos;
+        if(chaos>.1){
+          float d=distance(uv,vec2(.5));
+          uv.x+=sin(d*12.0-time*1.5)*.025*chaos;
+          uv.y+=cos(d*12.0-time*1.5)*.025*chaos;
         }
-        if(subMode==3) uv.x=abs(uv.x-0.5)+0.25;
+        vec4 fc;
+        if(subMode==3) uv.x=abs(uv.x-.5)+.25;
         if(subMode==4){float sz=60.0-(chaos*50.0);uv=floor(uv*sz)/sz;}
-
-        // AI texture with subtle independent drift
-        vec2 aiUv=vUv;
-        aiUv.x+=sin(time*0.17+vUv.y*3.14)*0.01*chaos;
-        aiUv.y+=cos(time*0.13+vUv.x*3.14)*0.008*chaos;
-
-        // Sample camera
-        vec4 camCol;
         if(subMode==5){
-          float sh=0.03*chaos;
-          camCol=vec4(texture2D(tDiffuse,uv+vec2(sh,0.0)).r,
-                      texture2D(tDiffuse,uv).g,
-                      texture2D(tDiffuse,uv-vec2(sh,0.0)).b,1.0);
-        } else { camCol=texture2D(tDiffuse,uv); }
-        float luma=dot(camCol.rgb,vec3(0.299,0.587,0.114));
-
-        // Color grade camera
-        vec4 graded;
+          float sh=.03*chaos;
+          fc=vec4(texture2D(tDiffuse,uv+vec2(sh,0.0)).r,
+                  texture2D(tDiffuse,uv).g,
+                  texture2D(tDiffuse,uv-vec2(sh,0.0)).b,1.0);
+        } else fc=texture2D(tDiffuse,uv);
+        float luma=dot(fc.rgb,vec3(.299,.587,.114));
         if(subMode==0){
-          vec3 col=mix(vec3(0.05),vec3(0.7,0.85,1.0),luma);
-          if(luma>0.55) col=mix(col,vec3(1.0),(luma-0.55)*2.5);
-          graded=vec4(col,1.0);
+          vec3 col=mix(vec3(.05),vec3(.7,.85,1.0),luma);
+          if(luma>.55)col=mix(col,vec3(1.0),(luma-.55)*2.5);
+          fc=vec4(col,1.0);
         } else if(subMode==1){
-          graded=vec4(vec3(fwidth(luma)*(18.0+chaos*25.0)),1.0);
+          fc=vec4(vec3(fwidth(luma)*(18.0+chaos*25.0)),1.0);
         } else if(subMode==2){
-          graded=vec4((1.0-camCol.rgb)*vec3(0.9,0.95,1.0),1.0);
-        } else { graded=camCol; }
-
-        // Sample AI
-        vec4 aiCol=texture2D(tAI,aiUv);
-
-        // Blend AI into camera using luminance weighting
-        vec3 final=graded.rgb;
-        if(aiReady>0.5 && aiBlend>0.001){
-          float w=(1.0-luma*0.45)*aiBlend;
-          vec3 m;
-          if(aiBlendMode==0)      m=blendScreen(graded.rgb,aiCol.rgb);
-          else if(aiBlendMode==1) m=blendMultiply(graded.rgb,aiCol.rgb);
-          else if(aiBlendMode==2) m=blendOverlay(graded.rgb,aiCol.rgb);
-          else                    m=blendDifference(graded.rgb,aiCol.rgb);
-          final=mix(graded.rgb,m,w);
+          fc.rgb=vec3(1.0)-fc.rgb; fc.rgb*=vec3(.9,.95,1.0);
         }
-        gl_FragColor=vec4(final,1.0)*transition;
+        gl_FragColor=fc*transition;
       }
     `,
     transparent:true
@@ -540,16 +563,15 @@ async function initThree(){
   particles=new THREE.Group();
   const cols=15,rows=12,pw=230/cols,ph=170/rows;
   const geos=[
-    new THREE.TorusKnotBufferGeometry(pw/3.6,0.1,32,8),
+    new THREE.TorusKnotBufferGeometry(pw/3.6,.1,32,8),
     new THREE.OctahedronBufferGeometry(pw/2.1,1),
-    new THREE.CylinderBufferGeometry(pw/4.5,pw/4.5,ph*0.8,8,1),
+    new THREE.CylinderBufferGeometry(pw/4.5,pw/4.5,ph*.8,8,1),
     new THREE.SphereBufferGeometry(pw/2.2,16,12),
   ];
-  const sizeScales=[1.8,1.3,1.0,0.5];
+  const scales=[1.8,1.3,1.0,.5];
   for(let i=0;i<cols;i++) for(let j=0;j<rows;j++){
-    const geo=geos[Math.floor(Math.random()*geos.length)];
-    const p=new THREE.Mesh(geo,shaderMat);
-    const sc=sizeScales[Math.floor(Math.random()*sizeScales.length)];
+    const p=new THREE.Mesh(geos[Math.floor(Math.random()*geos.length)],shaderMat);
+    const sc=scales[Math.floor(Math.random()*scales.length)];
     p.scale.set(sc,sc,sc);
     p.position.set(i*pw-115+pw/2,j*ph-85+ph/2,(Math.random()-.5)*20);
     p.userData={origin:p.position.clone(),v:new THREE.Vector3(),noise:Math.random()*100};
@@ -559,101 +581,106 @@ async function initThree(){
 
   liquidWeb=new THREE.LineSegments(
     new THREE.BufferGeometry(),
-    new THREE.LineBasicMaterial({color:0x444444,transparent:true,opacity:0.08})
+    new THREE.LineBasicMaterial({color:0x444444,transparent:true,opacity:.08})
   );
   scene.add(liquidWeb);
 
-  // First AI gen after 2s
-  setTimeout(()=>generateAI(),2000);
+  /* ── Warmup: let base scene run for 6s, then first AI gen ── */
+  document.getElementById('ai-txt').textContent='AI_GAZE :: 場景初始化中…';
+  setTimeout(()=>{
+    document.getElementById('ai-txt').textContent='AI_GAZE :: 開始觀察…';
+    generateAI();
+  },6000);
+
   animate();
 }
 
-/* ─── Motion tracking ────────────────────────────────────── */
-const elCursor=document.getElementById('cursor-el');
-const elCrt=document.getElementById('crt-overlay');
-let trackFrame=0;
-function updateTracking(){
-  trackFrame++;
-  if(trackFrame%8!==0||viewState.isInteracting) return;
-  const video=document.getElementById('video'),canvas=document.getElementById('motion-canvas');
-  if(!video||video.readyState<2) return;
-  const ctx=canvas.getContext('2d');
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  const curr=ctx.getImageData(0,0,canvas.width,canvas.height);
+/* ═══════════════════════════════════════════════════════════
+   MOTION TRACKING
+═══════════════════════════════════════════════════════════ */
+const elCur=document.getElementById('cur'),elCrt=document.getElementById('crt');
+let tf=0;
+function trackMotion(){
+  tf++;if(tf%8!==0||vs.interacting)return;
+  const v=document.getElementById('video'),c=document.getElementById('mc');
+  if(!v||v.readyState<2)return;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(v,0,0,c.width,c.height);
+  const cur=ctx.getImageData(0,0,c.width,c.height);
   if(prevFrame){
-    let tx=0,ty=0,count=0;
-    for(let i=0;i<curr.data.length;i+=4){
-      const diff=(Math.abs(curr.data[i]-prevFrame.data[i])+Math.abs(curr.data[i+1]-prevFrame.data[i+1])+Math.abs(curr.data[i+2]-prevFrame.data[i+2]))/3;
-      if(diff>26){const idx=i/4;tx+=idx%canvas.width;ty+=Math.floor(idx/canvas.width);count++;}
+    let tx=0,ty=0,cnt=0;
+    for(let i=0;i<cur.data.length;i+=4){
+      const d=(Math.abs(cur.data[i]-prevFrame.data[i])+Math.abs(cur.data[i+1]-prevFrame.data[i+1])+Math.abs(cur.data[i+2]-prevFrame.data[i+2]))/3;
+      if(d>26){const idx=i/4;tx+=idx%c.width;ty+=Math.floor(idx/c.width);cnt++;}
     }
-    if(count>25){
-      let nx=1.0-(tx/count/canvas.width);
-      nx=Math.max(0,Math.min(1,(nx-0.05)/0.9));
-      viewState.targetX=nx*window.innerWidth;
-      viewState.targetY=(ty/count/canvas.height)*window.innerHeight;
-      elCursor.classList.add('detecting');
-    } else { elCursor.classList.remove('detecting'); }
+    if(cnt>25){
+      let nx=1.0-(tx/cnt/c.width);
+      nx=Math.max(0,Math.min(1,(nx-.05)/.9));
+      vs.tx=nx*innerWidth;vs.ty=(ty/cnt/c.height)*innerHeight;
+      elCur.classList.add('on');
+    } else elCur.classList.remove('on');
   }
-  if(!prevFrame) prevFrame=new ImageData(curr.width,curr.height);
-  prevFrame.data.set(curr.data);
+  if(!prevFrame)prevFrame=new ImageData(cur.width,cur.height);
+  prevFrame.data.set(cur.data);
 }
 
-/* ─── Main loop ──────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════
+   MAIN LOOP
+═══════════════════════════════════════════════════════════ */
 function animate(){
   requestAnimationFrame(animate);
-  const time=Date.now()*0.001;
-  if(!shaderMat) return;
+  const t=Date.now()*.001;
+  if(!shaderMat)return;
 
-  shaderMat.uniforms.time.value=time;
+  shaderMat.uniforms.time.value=t;
   shaderMat.uniforms.chaos.value=chaos;
-  viewState.transition+=(viewState.targetTransition-viewState.transition)*0.12;
-  shaderMat.uniforms.transition.value=viewState.transition;
+  vs.trans+=(vs.tTrans-vs.trans)*.12;
+  shaderMat.uniforms.transition.value=vs.trans;
 
-  // Smooth AI blend
-  aiSt.blendNow+=(aiSt.blendTarget-aiSt.blendNow)*0.022;
-  shaderMat.uniforms.aiBlend.value=aiSt.blendNow;
-  const bar=document.getElementById('ai-bar');
-  if(bar) bar.style.width=(aiSt.blendNow*100).toFixed(1)+'%';
+  // Redraw reveal canvas each frame (subtle animation)
+  if(ai.revealImg) drawReveal();
 
-  updateTracking();
-  if(elCrt) elCrt.style.opacity=(0.7+Math.sin(time*50)*0.02*entropy).toString();
+  trackMotion();
+  tickCountdown();
 
-  viewState.currentX+=(viewState.targetX-viewState.currentX)*0.22;
-  viewState.currentY+=(viewState.targetY-viewState.currentY)*0.22;
-  elCursor.style.left=viewState.currentX+'px';
-  elCursor.style.top=viewState.currentY+'px';
+  // Update progress bar to show blend
+  const revealEl=document.getElementById('ai-reveal');
+  const curOp=parseFloat(revealEl.style.opacity||0);
+  const maxOp=.55+chaos*.2;
+  document.getElementById('ai-prog').style.width=((curOp/maxOp)*100).toFixed(1)+'%';
 
-  const cycleTime=8000/(0.35+entropy*1.8);
-  if(Date.now()-viewState.lastSwitch>cycleTime){
-    viewState.targetTransition=0.1;
+  elCrt.style.opacity=(0.7+Math.sin(t*50)*.02*entropy).toString();
+
+  vs.cx+=(vs.tx-vs.cx)*.22;vs.cy+=(vs.ty-vs.cy)*.22;
+  elCur.style.left=vs.cx+'px';elCur.style.top=vs.cy+'px';
+
+  const ct=8000/(.35+entropy*1.8);
+  if(Date.now()-vs.lastSwitch>ct){
+    vs.tTrans=.1;
     setTimeout(()=>{
-      viewState.modeCounter=(viewState.modeCounter+1)%6;
-      viewState.subMode=viewState.modeCounter;
-      viewState.phasePair=Math.floor(Math.random()*3)+1;
-      shaderMat.uniforms.subMode.value=viewState.subMode;
-      shaderMat.uniforms.phasePair.value=viewState.phasePair;
-      mesh.visible=(viewState.phasePair===1||viewState.phasePair===3);
-      particles.visible=(viewState.phasePair===2||viewState.phasePair===3);
-      viewState.targetTransition=1.0;
-      // auto AI gen on mode switch, throttled by entropy speed
-      const interval=Math.max(14000,24000-entropy*13000);
-      if(Date.now()-aiSt.lastGen>interval) generateAI();
+      vs.modeCount=(vs.modeCount+1)%6;vs.subMode=vs.modeCount;
+      vs.phase=Math.floor(Math.random()*3)+1;
+      shaderMat.uniforms.subMode.value=vs.subMode;
+      shaderMat.uniforms.phasePair.value=vs.phase;
+      mesh.visible=(vs.phase===1||vs.phase===3);
+      particles.visible=(vs.phase===2||vs.phase===3);
+      vs.tTrans=1.0;
     },400);
-    viewState.lastSwitch=Date.now();
+    vs.lastSwitch=Date.now();
   }
 
   const wm=new THREE.Vector3(
-    ((viewState.currentX/window.innerWidth)*2-1)*115,
-    -((viewState.currentY/window.innerHeight)*2-1)*85,10
+    ((vs.cx/innerWidth)*2-1)*115,
+    -((vs.cy/innerHeight)*2-1)*85,10
   );
 
   if(mesh.visible){
     const arr=mesh.geometry.attributes.position.array;
     for(let i=0;i<arr.length;i+=3){
       const dist=Math.sqrt((arr[i]-wm.x)**2+(arr[i+1]-wm.y)**2);
-      const jitter=(Math.random()-.5)*entropy*2.0;
-      let z=Math.sin(time*1.2+(arr[i]+arr[i+1])*0.04)*(4.5+chaos*8.0)+jitter;
-      if(dist<100) z+=(100-dist)*(0.6+chaos*1.8);
+      const j=(Math.random()-.5)*entropy*2;
+      let z=Math.sin(t*1.2+(arr[i]+arr[i+1])*.04)*(4.5+chaos*8)+j;
+      if(dist<100)z+=(100-dist)*(.6+chaos*1.8);
       arr[i+2]=z;
     }
     mesh.geometry.attributes.position.needsUpdate=true;
@@ -663,18 +690,18 @@ function animate(){
     const pts=[];
     particles.children.forEach(p=>{
       const ud=p.userData;
-      let target=ud.origin.clone();
-      target.x+=Math.sin(time*(0.35+chaos*1.3)+ud.noise)*(42*chaos);
-      target.y+=Math.cos(time*0.85*(0.35+chaos*1.3)+ud.noise)*(42*chaos);
+      const tg=ud.origin.clone();
+      tg.x+=Math.sin(t*(.35+chaos*1.3)+ud.noise)*(42*chaos);
+      tg.y+=Math.cos(t*.85*(.35+chaos*1.3)+ud.noise)*(42*chaos);
       const dist=p.position.distanceTo(wm);
       if(dist<88){
-        ud.v.add(new THREE.Vector3().subVectors(p.position,wm).normalize().multiplyScalar((1-dist/88)*(3.5+chaos*9.0)));
-        if(Math.random()>0.85) pts.push(p.position.x,p.position.y,p.position.z,wm.x,wm.y,wm.z);
+        ud.v.add(new THREE.Vector3().subVectors(p.position,wm).normalize().multiplyScalar((1-dist/88)*(3.5+chaos*9)));
+        if(Math.random()>.85)pts.push(p.position.x,p.position.y,p.position.z,wm.x,wm.y,wm.z);
       }
-      ud.v.add(new THREE.Vector3().subVectors(target,p.position).multiplyScalar(0.025));
-      ud.v.multiplyScalar(0.86-chaos*0.12);
+      ud.v.add(new THREE.Vector3().subVectors(tg,p.position).multiplyScalar(.025));
+      ud.v.multiplyScalar(.86-chaos*.12);
       p.position.add(ud.v);
-      p.rotation.x+=ud.v.length()*0.07;
+      p.rotation.x+=ud.v.length()*.07;
     });
     liquidWeb.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
     liquidWeb.geometry.attributes.position.needsUpdate=true;
@@ -684,21 +711,22 @@ function animate(){
 
 window.addEventListener('resize',()=>{
   if(camera&&renderer){
-    camera.aspect=window.innerWidth/window.innerHeight;
+    camera.aspect=innerWidth/innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth,window.innerHeight);
+    renderer.setSize(innerWidth,innerHeight);
   }
 });
 
-function onInteract(cx,cy){viewState.isInteracting=true;viewState.targetX=cx;viewState.targetY=cy;}
-const container=document.getElementById('container');
-container.addEventListener('mousedown',e=>onInteract(e.clientX,e.clientY));
-container.addEventListener('mousemove',e=>{if(e.buttons>0)onInteract(e.clientX,e.clientY);});
-container.addEventListener('mouseup',()=>viewState.isInteracting=false);
-container.addEventListener('touchstart',e=>onInteract(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
-container.addEventListener('touchmove',e=>onInteract(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
-container.addEventListener('touchend',()=>viewState.isInteracting=false);
+function onTouch(x,y){vs.interacting=true;vs.tx=x;vs.ty=y;}
+const cont=document.getElementById('container');
+cont.addEventListener('mousedown',e=>onTouch(e.clientX,e.clientY));
+cont.addEventListener('mousemove',e=>{if(e.buttons>0)onTouch(e.clientX,e.clientY);});
+cont.addEventListener('mouseup',()=>vs.interacting=false);
+cont.addEventListener('touchstart',e=>onTouch(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+cont.addEventListener('touchmove',e=>onTouch(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+cont.addEventListener('touchend',()=>vs.interacting=false);
 
+initAICanvas();
 initThree();
 </script>
 </body>
