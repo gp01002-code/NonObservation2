@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-  <title>SELF_OBSERVER :: v39.0 NEURAL_FUSION_REFINED</title>
+  <title>SELF_OBSERVER :: v41.0 MINIMAL_ULTIMATE</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -20,10 +20,10 @@
          background-size:100% 3px,3px 100%;opacity:.7; mix-blend-mode: overlay;}
 
     /* 感應游標 */
-    #cur{position:fixed;width:60px;height:60px;border:1px solid rgba(255,255,255,0.4);border-radius:50%;
+    #cur{position:fixed;width:50px;height:50px;border:1px solid rgba(255,255,255,0.4);border-radius:50%;
          z-index:700;pointer-events:none;transform:translate(-50%,-50%);
-         mix-blend-mode:screen;transition:all .3s;}
-    #cur.on{width:120px;height:120px;border-width:2px;border-color:#fff;background:rgba(255,255,255,0.1);box-shadow:0 0 50px rgba(255,255,255,0.6);}
+         mix-blend-mode:screen;transition:width .3s, height .3s, border-color .3s;}
+    #cur.on{width:110px;height:110px;border-width:2px;border-color:#fff;background:rgba(255,255,255,0.1);box-shadow:0 0 50px rgba(255,255,255,0.6);}
 
     #sidebar{
       position:fixed;left:0;top:0;bottom:0;z-index:800;
@@ -39,50 +39,61 @@
     #sidebar.open #sidebar-panel{width:320px;}
 
     #sidebar-header{
-      padding:30px 20px 15px; font-size:10px; letter-spacing:.5em; color:rgba(255,255,255,.6);
+      padding:25px 20px 15px; font-size:10px; letter-spacing:.5em; color:rgba(255,255,255,.6);
       border-bottom:1px solid rgba(255,255,255,0.1); flex-shrink:0; text-transform: uppercase;
     }
-    #sidebar-scroll{flex:1; overflow-y:auto; padding: 15px;}
+    #sidebar-scroll{flex:1; overflow-y:auto; padding: 12px;}
     #sidebar-scroll::-webkit-scrollbar{width:2px;}
     #sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.4);}
 
-    #history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .rec{ padding:10px; border:1px solid rgba(255,255,255,.06); cursor:pointer; transition:all .3s; background: rgba(255,255,255,0.02); }
-    .rec:hover{background:rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.5); transform: translateY(-2px);}
-    .rec-ai-img{width:100%; aspect-ratio:1; object-fit:cover; border:1px solid rgba(255,255,255,0.1); margin-bottom:8px; filter: grayscale(1) contrast(1.3);}
+    #history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .rec{ padding:8px; border:1px solid rgba(255,255,255,.06); cursor:pointer; transition:all .3s; background: rgba(255,255,255,0.02); }
+    .rec:hover{background:rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.5);}
+    .rec-ai-img{width:100%; aspect-ratio:1; object-fit:cover; border:1px solid rgba(255,255,255,0.1); margin-bottom:6px; filter: grayscale(1) contrast(1.3);}
     .rec-time{font-size:7px; color:rgba(255,255,255,.4);}
 
     #dbg-section{background:rgba(0,0,0,1); border-top:1px solid rgba(255,255,255,0.25);}
-    #dbg{padding:15px 20px; font-size:9px; line-height:1.7; color:#0f0; max-height:140px; overflow-y:auto; font-family: monospace; opacity: 0.9;}
+    #dbg{padding:12px 18px; font-size:9px; line-height:1.7; color:#0f0; max-height:140px; overflow-y:auto; font-family: monospace; opacity: 0.9;}
 
     #sidebar-toggle{
       width:32px; background:rgba(0,0,0,1); border-right:1px solid rgba(255,255,255,0.2); cursor:pointer;
       display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
     }
-    .tdot{width:4px; height:4px; background:#555; border-radius:50%; transition: 0.3s;}
-    #sidebar.open .tdot{background:#fff; box-shadow: 0 0 10px #fff;}
+    .tdot{width:4px; height:4px; background:#555; border-radius:50%;}
+    #sidebar.open .tdot{background:#fff;}
 
-    #controls{position:absolute;right:40px;bottom:40px;display:flex;flex-direction:column;align-items:flex-end;gap:35px;z-index:850;pointer-events:auto;}
-    .knob-wrap{display:flex;flex-direction:column;align-items:center;gap:12px;}
-    .knob-label{font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:0.3em; text-transform: uppercase;}
+    /* 控制面板 - 精簡右下角 */
+    #controls{position:absolute;right:30px;bottom:30px;display:flex;flex-direction:row;align-items:flex-end;gap:15px;z-index:850;pointer-events:auto;}
+    .knob-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;}
+    .knob-label{font-size:8px;color:rgba(255,255,255,0.4);letter-spacing:0.1em; text-transform: uppercase;}
     .knob{
-      width:80px;height:80px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);
+      width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);
       display:flex;align-items:center;justify-content:center;position:relative;
-      background:radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 75%);
-      cursor:ns-resize; transition: border-color 0.3s;
+      background:radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 75%);
+      cursor:ns-resize;
     }
-    .needle{position:absolute;width:2px;height:45%;background:#fff;box-shadow:0 0 15px #fff;
+    .needle{position:absolute;width:2px;height:45%;background:#fff;box-shadow:0 0 10px #fff;
             transform-origin:bottom center;bottom:50%;left:calc(50% - 1px);pointer-events:none;}
     
-    .ibtn{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.4);cursor:pointer;transition:0.4s; display: flex; align-items: center; justify-content: center; font-size: 8px;}
+    .ibtn{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.4);cursor:pointer;transition:0.4s; display: flex; align-items: center; justify-content: center; font-size: 8px;}
     .ibtn.active{background: #0af; border-color: transparent; box-shadow: 0 0 15px #0af;}
 
-    #eeg-hud{position:fixed;left:40px;bottom:40px;font-size:10px;color:rgba(255,255,255,0.4);line-height:2.4;z-index:500;}
-    .eeg-line{display:inline-block; width: 60px; height: 12px; background: rgba(255,255,255,0.05); vertical-align: middle; margin-left: 12px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.15);}
-    .eeg-bar{height: 100%; background: #fff; width: 0%; transition: width 0.1s ease; box-shadow: 0 0 8px #fff;}
+    /* 左側視窗縮小對齊 */
+    #eeg-hud{position:fixed;left:30px;bottom:30px;font-size:8px;color:rgba(255,255,255,0.4);line-height:2.0;z-index:500;}
+    .eeg-line{display:inline-block; width: 35px; height: 6px; background: rgba(255,255,255,0.05); vertical-align: middle; margin-left: 8px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);}
+    .eeg-bar{height: 100%; background: #fff; width: 0%; transition: width 0.1s ease;}
+    
+    #video-canvas{position:fixed; left:30px; bottom:110px; width:90px; height:68px; border:1px solid rgba(255,255,255,0.15); opacity:0.35; z-index:100; filter: grayscale(1) contrast(1.5);}
 
-    #uid-tag{position:fixed;top:40px;right:40px;font-size:12px;color:rgba(255,255,255,0.5);letter-spacing:0.7em;z-index:500;}
-    #video-canvas{position:fixed; left:40px; bottom:220px; width:160px; height:120px; border:1px solid rgba(255,255,255,0.2); opacity:0.5; z-index:100; filter: grayscale(1) contrast(2);}
+    /* 桌機版微調 */
+    @media (min-width: 768px) {
+      .knob, .ibtn { width: 48px; height: 48px; }
+      #video-canvas { width: 120px; height: 90px; bottom: 120px; }
+      #controls { right: 40px; bottom: 40px; }
+      #eeg-hud { left: 40px; bottom: 40px; font-size: 9px; }
+    }
+
+    #uid-tag{position:fixed;top:30px;right:30px;font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:0.3em;z-index:500;}
   </style>
 </head>
 <body>
@@ -96,44 +107,37 @@
 
 <div id="sidebar">
   <div id="sidebar-panel">
-    <div id="sidebar-header">NEURAL_FUSION_ARCHIVE</div>
+    <div id="sidebar-header">NEURAL_OBSERVATION_ARCHIVE</div>
     <div id="sidebar-scroll"><div id="history-grid"></div></div>
-    <div id="dbg-section"><div id="dbg">CORE_V39: REFINED_SYNC...</div></div>
+    <div id="dbg-section"><div id="dbg">SYSTEM_V41: MINIMAL_ONLINE...</div></div>
   </div>
   <div id="sidebar-toggle" onclick="toggleSidebar()">
     <div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>
   </div>
 </div>
 
-<div id="uid-tag">REFINED_STABLE // FUSION_ON</div>
+<div id="uid-tag">STABLE_V41 // MINIMAL</div>
+
 <div id="eeg-hud">
-  DEVICE: <span id="eeg-device" style="color:#0af; font-weight: bold;">OFFLINE</span><br/>
-  SYNC: <span id="eeg-val" style="color:#fff; font-weight:bold;">IDLE</span><br/>
-  ALPHA <div class="eeg-line"><div id="bar-a" class="eeg-bar"></div></div><br/>
-  BETA  <div class="eeg-line"><div id="bar-b" class="eeg-bar"></div></div><br/>
-  DELTA <div class="eeg-line"><div id="bar-d" class="eeg-bar"></div></div><br/>
-  THETA <div class="eeg-line"><div id="bar-t" class="eeg-bar"></div></div>
+  DEVC: <span id="eeg-device" style="color:#0af">STANDBY</span><br/>
+  SYNC: <span id="eeg-val" style="color:#fff">IDLE</span><br/>
+  ALP <div class="eeg-line"><div id="bar-a" class="eeg-bar"></div></div><br/>
+  BET <div class="eeg-line"><div id="bar-b" class="eeg-bar"></div></div>
 </div>
 
 <div id="controls">
-  <div style="display:flex;gap:35px;">
-    <div class="knob-wrap">
-      <span class="knob-label">Chaos</span>
-      <div class="knob" id="knob-chaos"><div class="needle" id="needle-chaos"></div></div>
-    </div>
-    <div class="knob-wrap">
-      <span class="knob-label">Entropy</span>
-      <div class="knob" id="knob-entropy"><div class="needle" id="needle-entropy"></div></div>
-    </div>
+  <div class="knob-wrap">
+    <span class="knob-label">Chaos</span>
+    <div class="knob" id="knob-chaos"><div class="needle" id="needle-chaos"></div></div>
   </div>
-  <div style="display:flex;align-items:center;gap:15px;margin-top:25px;">
-    <button id="btn-bt" class="ibtn" onclick="connectEEG()">BT</button>
-    <button id="btn-ai" class="ibtn" onclick="handleManualSync()">SYNC</button>
+  <div class="knob-wrap">
+    <span class="knob-label">SYNC</span>
+    <button id="btn-ai" class="ibtn" onclick="handleManualSync()">AI</button>
   </div>
 </div>
 
 <script>
-let chaos = 0.5, entropy = 0.4, generating = false, eegConnected = false;
+let chaos = 0.5, entropy = 0.4, generating = false, eegConnected = false, isDraggingKnob = false;
 let scene, camera, renderer, shaderMat, mesh, particles, videoTex, aiTex;
 let prevFrame = null, sidebarOpen = false, historyRecords = [], aiLoopTimer = null;
 const vs = { tx: innerWidth/2, ty: innerHeight/2, cx: innerWidth/2, cy: innerHeight/2, lastSwitch: Date.now(), trans: 0, tTrans: 0, subMode: 0 };
@@ -143,43 +147,32 @@ function dbg(m, c = "#0f0") {
   if(!el) return;
   const d = document.createElement('div'); d.style.color = c;
   d.textContent = `> ${m}`; el.appendChild(d); el.scrollTop = el.scrollHeight;
-  if (el.children.length > 30) el.removeChild(el.firstChild);
+  if (el.children.length > 25) el.removeChild(el.firstChild);
 }
 
 function toggleSidebar() { sidebarOpen = !sidebarOpen; document.getElementById('sidebar').classList.toggle('open', sidebarOpen); }
 
 async function connectEEG() {
-  if (!navigator.bluetooth) { dbg("BT_NOT_SUPPORTED", "#f44"); return; }
+  if (!navigator.bluetooth) return;
   try {
     const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
     await device.gatt.connect();
     eegConnected = true;
-    document.getElementById('btn-bt').classList.add('active');
-    document.getElementById('eeg-device').textContent = device.name.toUpperCase();
-    dbg("LINK_SUCCESSFUL", "#0f0");
-  } catch (e) { dbg(`BT_ABORT: ${e.message}`, "#f44"); }
+    document.getElementById('eeg-device').textContent = "ACTIVE";
+  } catch (e) {}
 }
 
-// ════════════════════════════════
-// 回復 v37 抽象與數據契合提示詞
-// ════════════════════════════════
 const PROMPTS = [
-  "abstract liquid topological noise, generative monochromatic neural grid, procedural displacement textures, non-photographic, digital void",
-  "3D crystalline wireframe void geometry, recursive holographic mesh fragments, monochromatic digital architecture, non-human, abstract",
-  "spectral kinetic energy ripples, liquid obsidian flow displacement, monochromatic interference trails, generative procedural noise map",
-  "generative sacred geometry obsidian patterns, complex fractal procedural glitch, symmetrical digital obsidian mirror, high contrast monochrome",
-  "shattered voxel data ruins, digital archaeological pixel fragments, abstract 3D topology map, monochromatic digital debris, non-photographic",
-  "distorted monochromatic liquid hologram, heavy chromatic interference noise, spectral data shards, generative chaos artifacts, digital art"
+  "abstract liquid topological noise, generative neural grid, monochromatic procedural textures, macro displacement, digital art",
+  "3D crystalline wireframe void geometry, holographic mesh fragments, monochromatic digital architecture, non-human, abstract",
+  "spectral kinetic energy ripples, liquid obsidian displacement, monochromatic interference trails, generative noise map",
+  "generative sacred geometry patterns, complex fractal procedural glitch, digital obsidian mirror, high contrast monochrome",
+  "shattered voxel data ruins, archaeological pixel fragments, abstract 3D topology, monochromatic digital debris",
+  "distorted monochromatic liquid hologram, heavy chromatic interference, spectral shards, generative chaos artifacts"
 ];
 
-// 備援：自製動態雜訊 SVG (100% 契合數位風格且不重複)
 function getFallbackVisual() {
-  const seed = Math.random();
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'>
-    <rect width='100%' height='100%' fill='black'/>
-    <filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.0${Math.floor(seed*9)+1}' numOctaves='5' seed='${Math.floor(seed*999)}'/></filter>
-    <rect width='100%' height='100%' filter='url(#n)' opacity='0.7'/>
-  </svg>`;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'><rect width='100%' height='100%' fill='black'/><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='5'/></filter><rect width='100%' height='100%' filter='url(#n)' opacity='0.7'/></svg>`;
   return `data:image/svg+xml;base64,${btoa(svg)}`;
 }
 
@@ -189,61 +182,47 @@ async function triggerAI() {
   if (generating) return;
   generating = true;
   const btn = document.getElementById('btn-ai');
-  btn.style.boxShadow = "0 0 20px #fff";
-  dbg("INIT_REFINED_SYNC...", "#fff");
+  btn.classList.add('active');
+  dbg("SYNCING NEURAL FUSION...", "#fff");
 
   const promptBase = PROMPTS[vs.subMode] || PROMPTS[0];
-  // 強化隨機種子，避免重複
   const seed = Math.floor(Math.random() * 99999999) + Date.now(); 
-  const finalPrompt = `${promptBase}, extremely abstract, monochrome, high contrast, digital art, no people, no real objects`;
+  const finalPrompt = `${promptBase}, abstract digital art, monochrome, high contrast, digital art, no people, no real objects`;
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
-
-  const scheduleNext = (delay = 30000) => {
-    generating = false; btn.style.boxShadow = "";
-    aiLoopTimer = setTimeout(triggerAI, delay);
-  };
 
   try {
     const tempImg = new Image();
     tempImg.crossOrigin = "anonymous";
-    
     const loadPromise = new Promise((resolve, reject) => {
       tempImg.onload = () => resolve(tempImg);
-      tempImg.onerror = () => reject(new Error("NETWORK_STALL"));
+      tempImg.onerror = () => reject(new Error("STALL"));
       tempImg.src = url;
       setTimeout(() => reject(new Error("TIMEOUT")), 35000);
     });
-
     const img = await loadPromise;
-    dbg("NEURAL_FUSION_DECODED ✓", "#0f0");
-    
-    // 更新 WebGL 紋理
+    dbg("FUSION_DECODED ✓", "#0f0");
     const newTex = new THREE.Texture(img);
     newTex.needsUpdate = true;
     aiTex = newTex;
     shaderMat.uniforms.tAI.value = aiTex;
     vs.tTrans = 1.0;
-
     addRecord(renderer.domElement.toDataURL('image/jpeg', 0.3), img.src);
-    setTimeout(() => { vs.tTrans = 0.0; scheduleNext(); }, 15000);
-
+    setTimeout(() => { vs.tTrans = 0.0; generating = false; btn.classList.remove('active'); aiLoopTimer = setTimeout(triggerAI, 30000); }, 15000);
   } catch (e) {
-    dbg(`SYNC_FAIL: ACTIVATING_FALLBACK_SVG`, "#ffaa00");
+    dbg(`SYNC_FAIL: SVG_FALLBACK`, "#ffaa00");
     const fbSrc = getFallbackVisual();
     const loader = new THREE.TextureLoader();
     loader.load(fbSrc, (tex) => {
-        aiTex = tex;
-        shaderMat.uniforms.tAI.value = aiTex;
-        vs.tTrans = 1.0;
+        aiTex = tex; shaderMat.uniforms.tAI.value = aiTex; vs.tTrans = 1.0;
         addRecord(renderer.domElement.toDataURL('image/jpeg', 0.3), fbSrc);
-        setTimeout(() => { vs.tTrans = 0.0; scheduleNext(15000); }, 10000);
+        setTimeout(() => { vs.tTrans = 0.0; generating = false; btn.classList.remove('active'); aiLoopTimer = setTimeout(triggerAI, 15000); }, 10000);
     });
   }
 }
 
 function addRecord(s1, s2) {
   historyRecords.unshift({ t: new Date().toLocaleTimeString(), s1, s2, mode: vs.subMode, c: chaos, e: entropy });
-  if(historyRecords.length > 80) historyRecords.pop();
+  if(historyRecords.length > 60) historyRecords.pop();
   renderHistory();
 }
 
@@ -262,33 +241,53 @@ function renderHistory() {
   });
 }
 
+// ════════════════════════════════
+// 指針追蹤修正 (滑鼠 + 觸控全螢幕)
+// ════════════════════════════════
+function updatePointer(x, y) {
+  if (isDraggingKnob) return;
+  vs.tx = x;
+  vs.ty = y;
+}
+
+window.addEventListener('mousedown', e => updatePointer(e.clientX, e.clientY));
+window.addEventListener('mousemove', e => updatePointer(e.clientX, e.clientY));
+window.addEventListener('touchstart', e => {
+  if (e.touches.length > 0) updatePointer(e.touches[0].clientX, e.touches[0].clientY);
+}, {passive: false});
+window.addEventListener('touchmove', e => {
+  if (e.touches.length > 0) updatePointer(e.touches[0].clientX, e.touches[0].clientY);
+}, {passive: false});
+
 function processMotion() {
   const v = document.getElementById('video');
   const cv = document.getElementById('analysis-cv');
-  const previewCv = document.getElementById('video-canvas');
   if (v.readyState < 2) return;
   const ctx = cv.getContext('2d');
-  const pCtx = previewCv.getContext('2d');
   ctx.drawImage(v, 0, 0, cv.width, cv.height);
-  pCtx.drawImage(v, 0, 0, previewCv.width, previewCv.height);
   const curr = ctx.getImageData(0, 0, cv.width, cv.height);
   if (prevFrame) {
     let tx = 0, ty = 0, count = 0;
     for (let i = 0; i < curr.data.length; i += 4) {
       const diff = (Math.abs(curr.data[i] - prevFrame.data[i]) + Math.abs(curr.data[i+1] - prevFrame.data[i+1]) + Math.abs(curr.data[i+2] - prevFrame.data[i+2])) / 3;
-      if (diff > 25) { tx += (i/4) % cv.width; ty += Math.floor((i/4) / cv.width); count++; }
+      if (diff > 30) { tx += (i/4) % cv.width; ty += Math.floor((i/4) / cv.width); count++; }
     }
-    if (count > 25) { vs.tx = (1.0 - (tx/count/cv.width)) * innerWidth; vs.ty = (ty/count/cv.height) * innerHeight; }
+    // 鏡頭動作優先級調低，若無人為操作才自動更新
+    if (count > 50 && !isDraggingKnob) {
+      vs.tx = (1.0 - (tx/count/cv.width)) * innerWidth;
+      vs.ty = (ty/count/cv.height) * innerHeight;
+    }
   }
   prevFrame = curr;
 }
 
 async function initEngine() {
   const v = document.getElementById('video');
+  const previewCv = document.getElementById('video-canvas');
   try {
     const s = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
     v.srcObject = s; await v.play();
-  } catch (e) { dbg("HARDWARE_ERROR", "#f44"); }
+  } catch (e) { dbg("SENSOR_OFFLINE", "#f44"); }
 
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
@@ -302,14 +301,7 @@ async function initEngine() {
   aiTex.needsUpdate = true;
 
   shaderMat = new THREE.ShaderMaterial({
-    uniforms: { 
-        tDiffuse: { value: videoTex }, 
-        tAI: { value: aiTex },
-        subMode: { value: 0 }, 
-        time: { value: 0 }, 
-        chaos: { value: 0.5 }, 
-        transition: { value: 0.0 } 
-    },
+    uniforms: { tDiffuse: { value: videoTex }, tAI: { value: aiTex }, subMode: { value: 0 }, time: { value: 0 }, chaos: { value: 0.5 }, transition: { value: 0.0 } },
     vertexShader: `
       varying vec2 vUv; varying float vZ; uniform float time, chaos;
       void main() {
@@ -334,15 +326,11 @@ async function initEngine() {
         }
         if(subMode == 3) uv.x = abs(uv.x - 0.5) + 0.25; 
         if(subMode == 4) { float sz = 160.0 - (chaos * 130.0); uv = floor(uv * sz) / sz; } 
-        
         vec4 cam = texture2D(tDiffuse, uv);
         vec4 ai = texture2D(tAI, uv);
-        
-        if(subMode == 0) cam.rgb = mix(vec3(0.0), vec3(0.1, 0.4, 0.8), dot(cam.rgb, vec3(0.3, 0.6, 0.1))); 
+        if(subMode == 0) cam.rgb = mix(vec3(0.0), vec3(0.1, 0.4, 0.8), dot(cam.rgb, vec3(0.33))); 
         else if(subMode == 1) cam = vec4(vec3(fwidth(dot(cam.rgb, vec3(0.33))) * 50.0), 1.0); 
         else if(subMode == 2) { cam.rgb = 1.0 - cam.rgb; cam.rgb *= vec3(0.8, 0.9, 1.0); } 
-        
-        // 神經融合：亮部重疊
         vec3 fused = 1.0 - (1.0 - cam.rgb) * (1.0 - ai.rgb * transition * 0.9);
         gl_FragColor = vec4(fused * (1.0 + vZ * 0.005), 1.0);
       }
@@ -373,8 +361,14 @@ function animate() {
   vs.trans += (vs.tTrans - vs.trans) * 0.05; shaderMat.uniforms.transition.value = vs.trans;
 
   vs.cx += (vs.tx - vs.cx) * 0.2; vs.cy += (vs.ty - vs.cy) * 0.2;
+  document.getElementById('cur').style.left = vs.cx + 'px';
+  document.getElementById('cur').style.top = vs.cy + 'px';
+
+  // 繪製左下角鏡頭預覽
+  const pCv = document.getElementById('video-canvas');
+  if(videoTex && videoTex.image) pCv.getContext('2d').drawImage(videoTex.image, 0, 0, pCv.width, pCv.height);
+
   const observerPos = new THREE.Vector3(((vs.cx/innerWidth)*2-1)*180, -((vs.cy/innerHeight)*2-1)*140, 10);
-  
   const posArr = mesh.geometry.attributes.position.array;
   for (let i = 0; i < posArr.length; i += 3) {
       let interactZ = 0;
@@ -396,7 +390,7 @@ function animate() {
 
   if(eegConnected) {
     const updateB = (id, b) => { document.getElementById(id).style.width = Math.max(5, Math.min(100, b*100 + (Math.random()-0.5)*30)) + "%"; };
-    updateB('bar-a', chaos); updateB('bar-b', entropy);
+    updateB('bar-a', chaos); updateB('bar-b', 0.5);
   }
 
   if (Date.now() - vs.lastSwitch > 20000) {
@@ -410,16 +404,23 @@ const mkKnob = (id, nid, set, val) => {
   let drag = false, lastY = 0;
   const updateN = (v) => { needle.style.transform = `rotate(${v * 280 - 140}deg)`; };
   updateN(val);
-  const move = y => { if(!drag) return; set((lastY - y) * 0.008); lastY = y; };
-  el.onmousedown = e => { drag = true; lastY = e.clientY; };
+  const start = y => { drag = true; lastY = y; isDraggingKnob = true; };
+  const move = y => { if(!drag) return; set((lastY - y) * 0.015); lastY = y; };
+  const stop = () => { drag = false; isDraggingKnob = false; };
+  
+  el.onmousedown = e => { e.stopPropagation(); start(e.clientY); };
   window.addEventListener('mousemove', e => move(e.clientY));
-  window.addEventListener('mouseup', () => drag = false);
-  setInterval(() => { updateN(id.includes('chaos') ? chaos : entropy); }, 100);
+  window.addEventListener('mouseup', stop);
+  
+  el.ontouchstart = e => { e.stopPropagation(); start(e.touches[0].clientY); };
+  window.addEventListener('touchmove', e => { if(drag) { e.preventDefault(); move(e.touches[0].clientY); } }, {passive: false});
+  window.addEventListener('touchend', stop);
+  
+  setInterval(() => { if(id.includes('chaos')) updateN(chaos); }, 100);
 };
 mkKnob('knob-chaos', 'needle-chaos', d => chaos = Math.max(0, Math.min(1, chaos + d)), chaos);
-mkKnob('knob-entropy', 'needle-entropy', d => entropy = Math.max(0, Math.min(1, entropy + d)), entropy);
 
-window.onload = () => { initEngine(); dbg("COHESION_REFINED_V39: ONLINE", "#fff"); setTimeout(triggerAI, 3000); };
+window.onload = () => { initEngine(); dbg("MINIMAL_STABLE_V41: ONLINE", "#fff"); setTimeout(triggerAI, 3000); };
 </script>
 </body>
 </html>
