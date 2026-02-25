@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-  <title>SELF_OBSERVER :: v41.0 MINIMAL_ULTIMATE</title>
+  <title>SELF_OBSERVER :: v43.0 NEURAL_ORGANIC_COHESION</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -36,20 +36,20 @@
       transition:width .5s cubic-bezier(.4,0,.2,1);
       display:flex;flex-direction:column;
     }
-    #sidebar.open #sidebar-panel{width:320px;}
+    #sidebar.open #sidebar-panel{width:280px;}
 
     #sidebar-header{
       padding:25px 20px 15px; font-size:10px; letter-spacing:.5em; color:rgba(255,255,255,.6);
       border-bottom:1px solid rgba(255,255,255,0.1); flex-shrink:0; text-transform: uppercase;
     }
-    #sidebar-scroll{flex:1; overflow-y:auto; padding: 12px;}
+    #sidebar-scroll{flex:1; overflow-y:auto; padding: 15px;}
     #sidebar-scroll::-webkit-scrollbar{width:2px;}
     #sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.4);}
 
     #history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .rec{ padding:8px; border:1px solid rgba(255,255,255,.06); cursor:pointer; transition:all .3s; background: rgba(255,255,255,0.02); }
-    .rec:hover{background:rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.5);}
-    .rec-ai-img{width:100%; aspect-ratio:1; object-fit:cover; border:1px solid rgba(255,255,255,0.1); margin-bottom:6px; filter: grayscale(1) contrast(1.3);}
+    .rec:hover{background:rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.5); transform: translateY(-2px);}
+    .rec-ai-img{width:100%; aspect-ratio:1; object-fit:cover; border:1px solid rgba(255,255,255,0.1); margin-bottom:8px; filter: grayscale(1) contrast(1.3);}
     .rec-time{font-size:7px; color:rgba(255,255,255,.4);}
 
     #dbg-section{background:rgba(0,0,0,1); border-top:1px solid rgba(255,255,255,0.25);}
@@ -59,10 +59,10 @@
       width:32px; background:rgba(0,0,0,1); border-right:1px solid rgba(255,255,255,0.2); cursor:pointer;
       display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
     }
-    .tdot{width:4px; height:4px; background:#555; border-radius:50%;}
+    .tdot{width:4px; height:4px; background:#555; border-radius:50%; transition: 0.3s;}
     #sidebar.open .tdot{background:#fff;}
 
-    /* 控制面板 - 精簡右下角 */
+    /* 控制面板 - 右下角保持精簡 */
     #controls{position:absolute;right:30px;bottom:30px;display:flex;flex-direction:row;align-items:flex-end;gap:15px;z-index:850;pointer-events:auto;}
     .knob-wrap{display:flex;flex-direction:column;align-items:center;gap:6px;}
     .knob-label{font-size:8px;color:rgba(255,255,255,0.4);letter-spacing:0.1em; text-transform: uppercase;}
@@ -78,14 +78,13 @@
     .ibtn{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.4);cursor:pointer;transition:0.4s; display: flex; align-items: center; justify-content: center; font-size: 8px;}
     .ibtn.active{background: #0af; border-color: transparent; box-shadow: 0 0 15px #0af;}
 
-    /* 左側視窗縮小對齊 */
+    /* 左側對齊視窗保持極低位置 */
     #eeg-hud{position:fixed;left:30px;bottom:30px;font-size:8px;color:rgba(255,255,255,0.4);line-height:2.0;z-index:500;}
     .eeg-line{display:inline-block; width: 35px; height: 6px; background: rgba(255,255,255,0.05); vertical-align: middle; margin-left: 8px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);}
     .eeg-bar{height: 100%; background: #fff; width: 0%; transition: width 0.1s ease;}
     
     #video-canvas{position:fixed; left:30px; bottom:110px; width:90px; height:68px; border:1px solid rgba(255,255,255,0.15); opacity:0.35; z-index:100; filter: grayscale(1) contrast(1.5);}
 
-    /* 桌機版微調 */
     @media (min-width: 768px) {
       .knob, .ibtn { width: 48px; height: 48px; }
       #video-canvas { width: 120px; height: 90px; bottom: 120px; }
@@ -109,14 +108,14 @@
   <div id="sidebar-panel">
     <div id="sidebar-header">NEURAL_OBSERVATION_ARCHIVE</div>
     <div id="sidebar-scroll"><div id="history-grid"></div></div>
-    <div id="dbg-section"><div id="dbg">SYSTEM_V41: MINIMAL_ONLINE...</div></div>
+    <div id="dbg-section"><div id="dbg">SYSTEM_V43: ORGANIC_COHESION_READY...</div></div>
   </div>
   <div id="sidebar-toggle" onclick="toggleSidebar()">
     <div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>
   </div>
 </div>
 
-<div id="uid-tag">STABLE_V41 // MINIMAL</div>
+<div id="uid-tag">STABLE_V43 // ORGANIC_FUSION</div>
 
 <div id="eeg-hud">
   DEVC: <span id="eeg-device" style="color:#0af">STANDBY</span><br/>
@@ -152,27 +151,23 @@ function dbg(m, c = "#0f0") {
 
 function toggleSidebar() { sidebarOpen = !sidebarOpen; document.getElementById('sidebar').classList.toggle('open', sidebarOpen); }
 
-async function connectEEG() {
-  if (!navigator.bluetooth) return;
-  try {
-    const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
-    await device.gatt.connect();
-    eegConnected = true;
-    document.getElementById('eeg-device').textContent = "ACTIVE";
-  } catch (e) {}
-}
-
 const PROMPTS = [
-  "abstract liquid topological noise, generative neural grid, monochromatic procedural textures, macro displacement, digital art",
-  "3D crystalline wireframe void geometry, holographic mesh fragments, monochromatic digital architecture, non-human, abstract",
-  "spectral kinetic energy ripples, liquid obsidian displacement, monochromatic interference trails, generative noise map",
-  "generative sacred geometry patterns, complex fractal procedural glitch, digital obsidian mirror, high contrast monochrome",
-  "shattered voxel data ruins, archaeological pixel fragments, abstract 3D topology, monochromatic digital debris",
-  "distorted monochromatic liquid hologram, heavy chromatic interference, spectral shards, generative chaos artifacts"
+  "ethereal neural humanoid silhouette, liquid data pulse, organic digital anatomy fragments, monochrome generative art",
+  "crystalline wireframe human form, recursive 3D geometric consciousness, monochromatic digital ghost, architectural void",
+  "ghostly humanoid apparition ripples, liquid obsidian energy flow, spectral light trails, abstract procedural spirit",
+  "humanoid sacred geometry mandala, complex fractal procedural soul patterns, symmetrical obsidian mirror, monochromatic glitch",
+  "shattered voxel humanoid data ruins, digital archaeological soul fragments, abstract 3D topological spirit map, monochromatic debris",
+  "distorted monochromatic humanoid hologram, heavy chromatic interference noise, spectral data shards of a soul, generative chaos"
 ];
 
 function getFallbackVisual() {
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'><rect width='100%' height='100%' fill='black'/><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='5'/></filter><rect width='100%' height='100%' filter='url(#n)' opacity='0.7'/></svg>`;
+  const seed = Math.random();
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'>
+    <rect width='100%' height='100%' fill='black'/>
+    <filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.0${Math.floor(seed*9)+1}' numOctaves='5' seed='${Math.floor(seed*999)}'/></filter>
+    <circle cx='256' cy='200' r='100' fill='white' opacity='0.08' filter='url(#n)'/>
+    <rect width='100%' height='100%' filter='url(#n)' opacity='0.6'/>
+  </svg>`;
   return `data:image/svg+xml;base64,${btoa(svg)}`;
 }
 
@@ -187,7 +182,7 @@ async function triggerAI() {
 
   const promptBase = PROMPTS[vs.subMode] || PROMPTS[0];
   const seed = Math.floor(Math.random() * 99999999) + Date.now(); 
-  const finalPrompt = `${promptBase}, abstract digital art, monochrome, high contrast, digital art, no people, no real objects`;
+  const finalPrompt = `${promptBase}, extremely abstract, monochrome, high contrast, digital art, non-photographic, grainy noise`;
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
 
   try {
@@ -241,9 +236,6 @@ function renderHistory() {
   });
 }
 
-// ════════════════════════════════
-// 指針追蹤修正 (滑鼠 + 觸控全螢幕)
-// ════════════════════════════════
 function updatePointer(x, y) {
   if (isDraggingKnob) return;
   vs.tx = x;
@@ -272,7 +264,6 @@ function processMotion() {
       const diff = (Math.abs(curr.data[i] - prevFrame.data[i]) + Math.abs(curr.data[i+1] - prevFrame.data[i+1]) + Math.abs(curr.data[i+2] - prevFrame.data[i+2])) / 3;
       if (diff > 30) { tx += (i/4) % cv.width; ty += Math.floor((i/4) / cv.width); count++; }
     }
-    // 鏡頭動作優先級調低，若無人為操作才自動更新
     if (count > 50 && !isDraggingKnob) {
       vs.tx = (1.0 - (tx/count/cv.width)) * innerWidth;
       vs.ty = (ty/count/cv.height) * innerHeight;
@@ -283,7 +274,6 @@ function processMotion() {
 
 async function initEngine() {
   const v = document.getElementById('video');
-  const previewCv = document.getElementById('video-canvas');
   try {
     const s = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
     v.srcObject = s; await v.play();
@@ -342,11 +332,20 @@ async function initEngine() {
   scene.add(mesh);
 
   particles = new THREE.Group();
-  const geos = [new THREE.SphereGeometry(12, 24, 24), new THREE.TorusKnotGeometry(10, 0.6, 120, 20)];
+  // 核心微調：使用不規則幾何體替代環狀線條
+  const geos = [
+      new THREE.IcosahedronGeometry(12, 1), 
+      new THREE.DodecahedronGeometry(10, 0),
+      new THREE.TetrahedronGeometry(14, 0)
+  ];
+  
   for(let i=0; i<90; i++){
-    const p = new THREE.Mesh(geos[i % 2], shaderMat);
+    const p = new THREE.Mesh(geos[i % geos.length], shaderMat);
     p.position.set((Math.random()-0.5)*400, (Math.random()-0.5)*300, (Math.random()-0.5)*120);
-    p.userData = { origin: p.position.clone(), v: new THREE.Vector3(), size: 12 + Math.random() * 10 };
+    // 加大尺寸差異變化
+    const s = 0.4 + Math.random() * 2.8; 
+    p.scale.set(s,s,s);
+    p.userData = { origin: p.position.clone(), v: new THREE.Vector3(), size: 10 * s };
     particles.add(p);
   }
   scene.add(particles);
@@ -364,34 +363,46 @@ function animate() {
   document.getElementById('cur').style.left = vs.cx + 'px';
   document.getElementById('cur').style.top = vs.cy + 'px';
 
-  // 繪製左下角鏡頭預覽
   const pCv = document.getElementById('video-canvas');
   if(videoTex && videoTex.image) pCv.getContext('2d').drawImage(videoTex.image, 0, 0, pCv.width, pCv.height);
 
   const observerPos = new THREE.Vector3(((vs.cx/innerWidth)*2-1)*180, -((vs.cy/innerHeight)*2-1)*140, 10);
+  
+  // 背景頂點數據獲取
   const posArr = mesh.geometry.attributes.position.array;
+  
+  // 每幀更新粒子位置，讓它們「黏」在背景波浪上
+  particles.children.forEach(p => {
+    const d = p.position.distanceTo(observerPos);
+    if(d < 120) p.userData.v.add(new THREE.Vector3().subVectors(p.position, observerPos).normalize().multiplyScalar((1.0 - d/120) * (35.0 + chaos * 40.0)));
+    p.position.add(p.userData.v); p.userData.v.multiplyScalar(0.85); 
+    
+    // 平滑回彈至原始 XY 位置
+    p.position.x = THREE.MathUtils.lerp(p.position.x, p.userData.origin.x, 0.04);
+    p.position.y = THREE.MathUtils.lerp(p.position.y, p.userData.origin.y, 0.04);
+    
+    // ════════════════════════════════
+    // 黏著感邏輯：Z 軸位置同步背景波浪
+    // ════════════════════════════════
+    const w = sin(p.position.x * 0.05 + t * 2.0) * cos(p.position.y * 0.05 + t * 1.5);
+    const waveZ = w * (10.0 + chaos * 40.0);
+    p.position.z = THREE.MathUtils.lerp(p.position.z, waveZ + 15.0, 0.1); 
+    
+    p.rotation.y += 0.02;
+    p.rotation.x += 0.01;
+  });
+
+  // 更新背景網格
   for (let i = 0; i < posArr.length; i += 3) {
       let interactZ = 0;
       particles.children.forEach(p => {
           const dx = posArr[i] - p.position.x, dy = posArr[i+1] - p.position.y;
-          const distSq = dx*dx + dy*dy, radius = p.userData.size * 4.5;
-          if (distSq < radius * radius) interactZ += (1.0 - Math.sqrt(distSq) / radius) * (20.0 + chaos * 60.0);
+          const distSq = dx*dx + dy*dy, radius = p.userData.size * 3.5;
+          if (distSq < radius * radius) interactZ += (1.0 - Math.sqrt(distSq) / radius) * (20.0 + chaos * 50.0);
       });
       posArr[i+2] = interactZ;
   }
   mesh.geometry.attributes.position.needsUpdate = true;
-
-  particles.children.forEach(p => {
-    const d = p.position.distanceTo(observerPos);
-    if(d < 120) p.userData.v.add(new THREE.Vector3().subVectors(p.position, observerPos).normalize().multiplyScalar((1.0 - d/120) * (35.0 + chaos * 40.0)));
-    p.position.add(p.userData.v); p.userData.v.multiplyScalar(0.85); p.position.lerp(p.userData.origin, 0.04); 
-    p.rotation.y += 0.02;
-  });
-
-  if(eegConnected) {
-    const updateB = (id, b) => { document.getElementById(id).style.width = Math.max(5, Math.min(100, b*100 + (Math.random()-0.5)*30)) + "%"; };
-    updateB('bar-a', chaos); updateB('bar-b', 0.5);
-  }
 
   if (Date.now() - vs.lastSwitch > 20000) {
     vs.lastSwitch = Date.now(); vs.subMode = (vs.subMode + 1) % 6; shaderMat.uniforms.subMode.value = vs.subMode;
@@ -407,20 +418,19 @@ const mkKnob = (id, nid, set, val) => {
   const start = y => { drag = true; lastY = y; isDraggingKnob = true; };
   const move = y => { if(!drag) return; set((lastY - y) * 0.015); lastY = y; };
   const stop = () => { drag = false; isDraggingKnob = false; };
-  
   el.onmousedown = e => { e.stopPropagation(); start(e.clientY); };
   window.addEventListener('mousemove', e => move(e.clientY));
   window.addEventListener('mouseup', stop);
-  
   el.ontouchstart = e => { e.stopPropagation(); start(e.touches[0].clientY); };
   window.addEventListener('touchmove', e => { if(drag) { e.preventDefault(); move(e.touches[0].clientY); } }, {passive: false});
   window.addEventListener('touchend', stop);
-  
   setInterval(() => { if(id.includes('chaos')) updateN(chaos); }, 100);
 };
+function sin(v){return Math.sin(v);}
+function cos(v){return Math.cos(v);}
 mkKnob('knob-chaos', 'needle-chaos', d => chaos = Math.max(0, Math.min(1, chaos + d)), chaos);
 
-window.onload = () => { initEngine(); dbg("MINIMAL_STABLE_V41: ONLINE", "#fff"); setTimeout(triggerAI, 3000); };
+window.onload = () => { initEngine(); dbg("ORGANIC_COHESION_V43: ONLINE", "#fff"); setTimeout(triggerAI, 3000); };
 </script>
 </body>
 </html>
