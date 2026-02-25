@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob: https:; connect-src * https:;">
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
   <title>SELF_OBSERVER :: v23</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -739,41 +740,69 @@ async function initThree(){
 }
 
 async function testConnectivity(){
-  dbg('=== CONNECTIVITY TEST ===','#fff');
-  
-  // Test 1: simple image from picsum (no AI, just checks img loading works)
+  dbg('=== CONNECTIVITY TEST ===','#aaa');
+
+  // 偵測 file:// 協定
+  if(location.protocol === 'file:'){
+    dbg('⚠ 偵測到 file:// 協定','#f84');
+    dbg('請用 HTTP server 開啟此檔案','#f84');
+    dbg('方法: python3 -m http.server 8080','#ff8');
+    dbg('然後開 http://localhost:8080','#ff8');
+    // 在主畫面顯示提示
+    showProtocolWarning();
+  }
+
+  // 測試一般圖片載入
+  dbg('測試圖片連線...','#aaa');
   const picsumOk = await new Promise(resolve=>{
     const t=new Image();
-    t.onload=()=>{ dbg('picsum.photos: OK ✓','#0f0'); resolve(true); };
-    t.onerror=()=>{ dbg('picsum.photos: FAIL ✗','#f44'); resolve(false); };
-    t.src='https://picsum.photos/50?random=1';
-    setTimeout(()=>resolve(false),8000);
+    t.onload=()=>{ dbg('外部圖片: OK ✓','#0f0'); resolve(true); };
+    t.onerror=()=>{ dbg('外部圖片: FAIL ✗','#f44'); resolve(false); };
+    t.src='https://picsum.photos/64/64?random='+Date.now();
+    setTimeout(()=>{ dbg('外部圖片: TIMEOUT','#f44'); resolve(false); },6000);
   });
-  
-  // Test 2: pollinations test image
+
   const pollOk = await new Promise(resolve=>{
     const t=new Image();
     t.onload=()=>{ dbg('pollinations: OK ✓','#0f0'); resolve(true); };
     t.onerror=()=>{ dbg('pollinations: FAIL ✗','#f44'); resolve(false); };
-    t.src='https://image.pollinations.ai/prompt/test?width=64&height=64&nologo=true';
-    setTimeout(()=>resolve(false),15000);
+    t.src='https://image.pollinations.ai/prompt/test?width=64&height=64&nologo=true&seed=1';
+    setTimeout(()=>{ dbg('pollinations: TIMEOUT','#f44'); resolve(false); },18000);
   });
-  
-  if(!pollOk && !picsumOk){
-    dbg('NETWORK BLOCKED — check browser/firewall','#f44');
-  } else if(!pollOk){
-    dbg('pollinations blocked — using backup','#f84');
+
+  if(picsumOk && pollOk){
+    dbg('✓ 連線正常，5秒後開始生成','#0f0');
+    setTimeout(triggerAI,5000);
+  } else if(!picsumOk){
+    dbg('✗ 無法連外網，請檢查網路','#f44');
+    dbg('若用 file:// 請改用 HTTP server','#f84');
   } else {
-    dbg('pollinations OK — starting in 3s','#0f0');
-    setTimeout(triggerAI,3000);
-    return;
+    dbg('✗ pollinations 不可用','#f44');
+    dbg('稍後重試...','#aaa');
+    setTimeout(triggerAI,8000);
   }
-  
-  // If pollinations fails but internet works, use alternative
-  if(picsumOk){
-    dbg('using lexica.art API as backup','#ff8');
-  }
-  setTimeout(triggerAI, 3000);
+}
+
+function showProtocolWarning(){
+  // 在畫面正中顯示提示
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.85);font-family:monospace;color:#fff;gap:16px;pointer-events:auto;';
+  el.innerHTML=`
+    <div style="font-size:11px;letter-spacing:.3em;color:rgba(255,255,255,.5);">⚠ PROTOCOL WARNING</div>
+    <div style="font-size:13px;letter-spacing:.15em;text-align:center;line-height:2;">
+      此檔案需透過 HTTP server 開啟<br>才能連接 AI 生成服務
+    </div>
+    <div style="font-size:10px;background:rgba(255,255,255,.08);padding:16px 24px;letter-spacing:.1em;line-height:2;text-align:left;">
+      <div style="color:rgba(255,255,255,.4);margin-bottom:4px;"># 在終端機執行：</div>
+      python3 -m http.server 8080<br>
+      <div style="color:rgba(255,255,255,.4);margin:8px 0 4px;"># 然後開啟瀏覽器前往：</div>
+      http://localhost:8080
+    </div>
+    <div style="font-size:9px;color:rgba(255,255,255,.25);cursor:pointer;letter-spacing:.2em;margin-top:8px;" onclick="this.parentElement.remove()">
+      [ 忽略，繼續嘗試 ]
+    </div>
+  `;
+  document.body.appendChild(el);
 }
 
 /* ════════════════════════════════
