@@ -397,21 +397,32 @@ async function triggerAI(){
   const url=`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`
     +`?width=768&height=768&nologo=true&seed=${seed}&model=flux`;
 
+  // fetch → blob → objectURL  (最可靠，v18 驗證過可用)
   let loadedSrc='';
-  await new Promise((resolve,reject)=>{
-    aiImgEl.onload=()=>{ loadedSrc=aiImgEl.src; resolve(); };
-    aiImgEl.onerror=()=>reject(new Error('LOAD_FAIL'));
-    aiImgEl.src=url;
-    setTimeout(()=>reject(new Error('TIMEOUT')),42000);
-  }).catch(async(e)=>{
-    console.warn('AI fail:',e);
+  try{
+    const resp = await Promise.race([
+      fetch(url),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('TIMEOUT')),42000))
+    ]);
+    if(!resp.ok) throw new Error('HTTP_'+resp.status);
+    const blob = await resp.blob();
+    const objURL = URL.createObjectURL(blob);
+    // 等 img onload
+    await new Promise((resolve,reject)=>{
+      aiImgEl.onload = ()=>resolve();
+      aiImgEl.onerror = ()=>reject(new Error('IMG_FAIL'));
+      aiImgEl.src = objURL;
+    });
+    loadedSrc = objURL;
+  }catch(e){
+    console.warn('AI fail:',e.message);
     noisePhase='off'; noiseCv.style.opacity='0';
     aiImgEl.src='';
     document.getElementById('btn-ai').className='ibtn';
     generating=false;
-    loopTimer=setTimeout(triggerAI,10000);
-    throw e;
-  });
+    loopTimer=setTimeout(triggerAI,12000);
+    return;
+  }
 
   // 圖像已載入 → 雜訊開始消退，圖像像素化浮現
   aiImgEl.style.imageRendering='pixelated';
@@ -443,9 +454,7 @@ async function triggerAI(){
   generating=false;
 
   // 記錄歷史（loadedSrc is the actual loaded URL）
-  const recS2 = loadedSrc || aiImgEl.src || '';
-  console.log('addRecord s2:', recS2.substring(0,80));
-  addRecord(stage1Data||'', recS2, vs.subMode, chaos, entropy);
+  addRecord(stage1Data||'', loadedSrc, vs.subMode, chaos, entropy);
 
   // 自動循環
   const hold=Math.round(20000-entropy*8000);
